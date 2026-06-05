@@ -1,0 +1,88 @@
+version: "3.9"
+
+services:
+  # ----------------------------------------------------------------
+  # PostgreSQL — Primary database
+  # ----------------------------------------------------------------
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    container_name: faers_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: faers
+      POSTGRES_USER: faers_user
+      POSTGRES_PASSWORD: faers_secret_pw
+      # Performance tuning for analytics workloads
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./database/materialized_views.sql:/docker-entrypoint-initdb.d/02_views.sql
+    command: >
+      postgres
+        -c shared_buffers=1GB
+        -c effective_cache_size=3GB
+        -c maintenance_work_mem=512MB
+        -c work_mem=64MB
+        -c max_parallel_workers_per_gather=4
+        -c max_parallel_workers=8
+        -c wal_level=replica
+        -c max_wal_size=4GB
+        -c checkpoint_completion_target=0.9
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c statement_timeout=10000
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U faers_user -d faers"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------
+  # Redis — Query result cache
+  # ----------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    container_name: faers_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------
+  # FAERS API — FastAPI backend
+  # ----------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: faers_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+      - .:/app
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  redis_data:
