@@ -20,7 +20,6 @@ All variants must:
 import pytest
 from unittest.mock import MagicMock
 
-
 # Question variant groups — same intent, different words
 # Each tuple: (intent_label, list_of_equivalent_phrasings, expected_table_or_view)
 QUESTION_VARIANTS = [
@@ -63,7 +62,6 @@ QUESTION_VARIANTS = [
     ),
 ]
 
-
 # Helper: build an engine where LLM echoes a table-specific SQL
 def _make_engine_with_sql(sql: str):
     """Create a mock engine whose LLM always returns the given SQL."""
@@ -95,7 +93,6 @@ def _make_engine_with_sql(sql: str):
         enable_cache=False,
         explain_results=False,
     )
-
 
 # Consistency Tests
 class TestNLQConsistency:
@@ -158,7 +155,6 @@ class TestNLQConsistency:
                 f"SQL must always be returned. "
                 f"Empty SQL for: '{variant}'"
             )
-
 
 # SQL structure comparison (structural fingerprinting)
 class TestSQLFingerprinting:

@@ -11,7 +11,6 @@ from nlp.query_engine import FAERSQueryEngine
 
 router = APIRouter()
 
-
 class NLQueryRequest(BaseModel):
     question: str = Field(
         ...,
@@ -25,7 +24,6 @@ class NLQueryRequest(BaseModel):
         description="Filter results to a specific quarter (optional)",
     )
 
-
 class NLQueryResponse(BaseModel):
     question: str
     sql: str
@@ -38,7 +36,6 @@ class NLQueryResponse(BaseModel):
     query_type: str
     warning: Optional[str] = None
     error: Optional[str] = None
-
 
 @router.post("/query", response_model=NLQueryResponse, summary="Natural language query")
 async def nlp_query(
@@ -76,7 +73,6 @@ async def nlp_query(
             raise HTTPException(status_code=400, detail=result.error)
 
     return NLQueryResponse(**result.to_dict())
-
 
 @router.get("/examples", summary="Example questions to try")
 async def get_examples():
@@ -140,7 +136,6 @@ async def get_examples():
             },
         ]
     }
-
 
 @router.get("/history", summary="Recent query history")
 async def query_history(

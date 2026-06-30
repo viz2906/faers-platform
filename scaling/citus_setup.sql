@@ -1,9 +1,7 @@
--- ============================================================
 -- Citus Distributed PostgreSQL Setup for FAERS at Infinite Scale
--- ============================================================
 -- When to use: After 50+ quarters (~500M+ total rows), or when
 -- single PostgreSQL node can't serve concurrent query load.
--- ============================================================
+
 -- 
 -- STEP 1: Install Citus extension (on all nodes)
 -- See: https://docs.citusdata.com/en/stable/installation/multi_node_rhel.html
@@ -13,14 +11,11 @@
 -- Add workers: SELECT citus_add_node('worker1.host', 5432);
 --              SELECT citus_add_node('worker2.host', 5432);
 --              SELECT citus_add_node('worker3.host', 5432);
--- ============================================================
 
 -- Create the extension on the coordinator
 CREATE EXTENSION IF NOT EXISTS citus;
 
--- ============================================================
 -- DISTRIBUTION STRATEGY
--- ============================================================
 --
 -- Key: distribute by primaryid (natural distribution key)
 -- Reason: All tables JOIN on primaryid → co-location means
@@ -58,22 +53,15 @@ SELECT create_reference_table('nlq_query_log');
 SELECT create_reference_table('faers_quarter_metadata');
 SELECT create_reference_table('drug_name_mappings');
 
--- ============================================================
 -- Verify distribution
--- ============================================================
 SELECT table_name, citus_table_type, colocation_id, distribution_column
 FROM citus_tables
 ORDER BY table_name;
 
--- ============================================================
 -- Shard rebalancing (run after adding new worker nodes)
--- ============================================================
 -- SELECT rebalance_table_shards('faers_demo');
 
--- ============================================================
 -- Scaling commands
--- ============================================================
-
 -- Add a new worker (zero-downtime)
 -- SELECT citus_add_node('worker4.host', 5432);
 -- SELECT rebalance_table_shards();  -- Rebalance shards to new node
@@ -84,9 +72,7 @@ ORDER BY table_name;
 -- Monitor distributed query performance
 -- SELECT * FROM citus_stat_statements ORDER BY total_exec_time DESC LIMIT 10;
 
--- ============================================================
 -- DISTRIBUTED MATERIALIZED VIEWS
--- ============================================================
 -- Note: Citus doesn't natively support materialized views across shards.
 -- Strategy: Keep materialized views on the coordinator only,
 -- populated from distributed query results.
@@ -112,10 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_mv_citus_drp_drug
 CREATE INDEX IF NOT EXISTS idx_mv_citus_drp_drug_trgm
     ON mv_drug_reaction_pairs USING gin(drugname_clean gin_trgm_ops);
 
--- ============================================================
 -- PERFORMANCE MONITORING on Citus
--- ============================================================
-
 -- Check which workers are being used
 -- SELECT * FROM citus_worker_stat_activity;
 
@@ -123,9 +106,7 @@ CREATE INDEX IF NOT EXISTS idx_mv_citus_drp_drug_trgm
 -- EXPLAIN SELECT COUNT(*) FROM faers_drug WHERE drugname_clean ILIKE '%ASPIRIN%';
 -- Look for "Custom Scan (Citus Adaptive)" — means it's using distributed execution
 
--- ============================================================
 -- CITUS HORIZONTAL SCALING MATH
--- ============================================================
 --
 -- 1 node  × 32 shards = handles ~200M rows, ~100 concurrent queries
 -- 3 nodes × 32 shards = handles ~600M rows, ~300 concurrent queries
@@ -139,4 +120,3 @@ CREATE INDEX IF NOT EXISTS idx_mv_citus_drp_drug_trgm
 -- All historical data (2004-2026) ≈ 500M rows total
 -- → 3 Citus nodes is more than enough for ALL historical FAERS data
 --
--- ============================================================

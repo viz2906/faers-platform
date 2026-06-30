@@ -8,7 +8,6 @@ No real database, Redis, or OpenAI calls are made.
 import pytest
 from nlp.query_engine import FAERSQueryEngine, classify_query, QueryResult
 
-
 # classify_query — Query Router Tests
 class TestClassifyQuery:
     """Tests for the query classifier that routes to MVs vs raw tables."""
@@ -39,7 +38,6 @@ class TestClassifyQuery:
 
     def test_empty_string_falls_back_to_raw(self):
         assert classify_query("") == "raw_tables"
-
 
 # FAERSQueryEngine — Core Query Tests
 class TestQueryEngine:
@@ -120,7 +118,6 @@ class TestQueryEngine:
         result = mock_engine.query("what drug causes the most reactions")
         assert result.warning is not None
 
-
 # Cache key tests
 class TestCacheKey:
     """Tests for cache key generation."""
@@ -156,7 +153,6 @@ class TestCacheKey:
         assert result.from_cache is True
         # LLM must NOT have been called — we used the cache
         mock_llm.chat.completions.create.assert_not_called()
-
 
 # QueryResult model tests
 class TestQueryResult:

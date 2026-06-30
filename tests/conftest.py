@@ -14,7 +14,6 @@ import pytest
 from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
-
 # Sample FAERS data fixtures (small, deterministic datasets)
 @pytest.fixture
 def sample_drug_rows():
@@ -32,11 +31,9 @@ def sample_drug_rows():
         ("PREDNISONE", 11100),
     ]
 
-
 @pytest.fixture
 def sample_columns():
     return ["drugname_clean", "report_count"]
-
 
 @pytest.fixture
 def sample_sql():
@@ -45,7 +42,6 @@ def sample_sql():
         "FROM faers_drug WHERE role_cod = 'PS' "
         "GROUP BY drugname_clean ORDER BY report_count DESC LIMIT 10"
     )
-
 
 # Mock database connection
 @pytest.fixture
@@ -65,7 +61,6 @@ def mock_db(sample_columns, sample_drug_rows):
     mock_conn.commit = MagicMock()
     return mock_conn
 
-
 # Mock Redis client
 @pytest.fixture
 def mock_redis():
@@ -75,7 +70,6 @@ def mock_redis():
     r.setex.return_value = True
     r.ping.return_value = True
     return r
-
 
 @pytest.fixture
 def mock_redis_hit(sample_columns, sample_drug_rows, sample_sql):
@@ -100,7 +94,6 @@ def mock_redis_hit(sample_columns, sample_drug_rows, sample_sql):
     r.ping.return_value = True
     return r
 
-
 # Mock LLM (OpenAI)
 @pytest.fixture
 def mock_llm(sample_sql):
@@ -117,7 +110,6 @@ def mock_llm(sample_sql):
     llm = MagicMock()
     llm.chat.completions.create.return_value = mock_response
     return llm
-
 
 @pytest.fixture
 def mock_llm_explanation(sample_sql):
@@ -142,7 +134,6 @@ def mock_llm_explanation(sample_sql):
     llm.chat.completions.create.side_effect = [sql_response, explain_response]
     return llm
 
-
 # Pre-built FAERSQueryEngine using all mocks
 @pytest.fixture
 def mock_engine(mock_db, mock_redis, mock_llm):
@@ -161,7 +152,6 @@ def mock_engine(mock_db, mock_redis, mock_llm):
         enable_cache=False,      # disable caching for deterministic unit tests
         explain_results=False,   # disable explanation to keep tests fast
     )
-
 
 # FastAPI test client
 @pytest.fixture

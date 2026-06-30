@@ -17,7 +17,6 @@ import pandas as pd
 import numpy as np
 from loguru import logger
 
-
 # FAERS File Definitions
 DELIMITER = "$"
 ENCODING = "latin-1"      # CRITICAL: FAERS is NOT UTF-8
@@ -36,7 +35,7 @@ TABLE_PATTERNS = {
 # Explicit dtype definitions to prevent pandas guessing wrong types
 TABLE_DTYPES = {
     "DEMO": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "caseversion": "Int64",      # nullable int
         "i_f_code": str,
@@ -63,7 +62,7 @@ TABLE_DTYPES = {
         "occr_country": str,
     },
     "DRUG": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "drug_seq": "Int64",
         "role_cod": str,
@@ -85,23 +84,23 @@ TABLE_DTYPES = {
         "dose_freq": str,
     },
     "REAC": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "pt": str,
         "drug_rec_act": str,
     },
     "OUTC": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "outc_cod": str,
     },
     "RPSR": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "rpsr_cod": str,
     },
     "THER": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "drug_seq": "Int64",
         "start_dt": str,
@@ -110,13 +109,12 @@ TABLE_DTYPES = {
         "dur_cod": str,
     },
     "INDI": {
-        "primaryid": str,
+        "report_id": str,
         "caseid": str,
         "drug_seq": "Int64",
         "indi_pt": str,
     },
 }
-
 
 # Core Parser
 def find_table_file(ascii_dir: str, table_name: str) -> Optional[str]:
@@ -127,7 +125,6 @@ def find_table_file(ascii_dir: str, table_name: str) -> Optional[str]:
             return matches[0]
     logger.warning(f"Could not find file for table {table_name} in {ascii_dir}")
     return None
-
 
 def load_raw_table(filepath: str, table_name: str) -> pd.DataFrame:
     """Load a single FAERS ASCII table file into a raw DataFrame."""
@@ -159,9 +156,12 @@ def load_raw_table(filepath: str, table_name: str) -> pd.DataFrame:
     # Normalize column names: lowercase, strip whitespace
     df.columns = df.columns.str.lower().str.strip()
     
+    # Rename primaryid to report_id for cross-source compatibility
+    if "primaryid" in df.columns:
+        df = df.rename(columns={"primaryid": "report_id"})
+    
     logger.info(f"  Loaded {len(df):,} rows, {len(df.columns)} columns: {list(df.columns)}")
     return df
-
 
 # Date Parsing
 FAERS_DATE_FORMATS = [
@@ -173,7 +173,6 @@ FAERS_DATE_FORMATS = [
 ]
 
 INVALID_DATES = {"", "0", "00000000", "00000", "0000", "99999999"}
-
 
 def parse_faers_date(date_str) -> Optional[pd.Timestamp]:
     """Parse FAERS date strings which come in many inconsistent formats."""
@@ -201,7 +200,6 @@ def parse_faers_date(date_str) -> Optional[pd.Timestamp]:
     
     return None
 
-
 # Age Normalization
 AGE_TO_YEARS = {
     "YR":  1.0,
@@ -211,7 +209,6 @@ AGE_TO_YEARS = {
     "DY":  1.0 / 365.25,
     "HR":  1.0 / 8766.0,
 }
-
 
 def normalize_age_to_years(age: float, age_cod: str) -> Optional[float]:
     """Convert age from any FAERS unit to decimal years."""
@@ -227,14 +224,12 @@ def normalize_age_to_years(age: float, age_cod: str) -> Optional[float]:
         return None
     return round(result, 2)
 
-
 # Weight Normalization
 WEIGHT_TO_KG = {
     "KG":  1.0,
     "LBS": 0.453592,
     "GMS": 0.001,
 }
-
 
 def normalize_weight_to_kg(wt: float, wt_cod: str) -> Optional[float]:
     """Convert weight to kilograms."""
@@ -246,7 +241,6 @@ def normalize_weight_to_kg(wt: float, wt_cod: str) -> Optional[float]:
     if result > 700 or result < 0.1:  # Sanity: 0.1kg to 700kg
         return None
     return round(result, 2)
-
 
 # Table-Specific Cleaning
 def clean_demo(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
@@ -293,18 +287,17 @@ def clean_demo(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     # Quarter tag
     df["quarter"] = quarter
     
-    # Ensure primaryid is numeric
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
+    # Ensure report_id is numeric
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
     df["caseid"] = pd.to_numeric(df["caseid"], errors="coerce")
     
     # Drop rows with missing primary key
     before = len(df)
-    df = df.dropna(subset=["primaryid"])
+    df = df.dropna(subset=["report_id"])
     if before > len(df):
-        logger.warning(f"  Dropped {before - len(df)} rows with null primaryid")
+        logger.warning(f"  Dropped {before - len(df)} rows with null report_id")
     
     return df
-
 
 def clean_drug(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     """Clean and enrich the DRUG table."""
@@ -344,13 +337,12 @@ def clean_drug(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     df["quarter"] = quarter
     
     # Ensure PKs are numeric
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
     df["caseid"] = pd.to_numeric(df["caseid"], errors="coerce")
     df["drug_seq"] = pd.to_numeric(df.get("drug_seq"), errors="coerce")
     
-    df = df.dropna(subset=["primaryid"])
+    df = df.dropna(subset=["report_id"])
     return df
-
 
 def clean_reac(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     """Clean the REAC (reactions) table."""
@@ -365,12 +357,11 @@ def clean_reac(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     )
     
     df["quarter"] = quarter
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
-    df = df.dropna(subset=["primaryid", "pt"])
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
+    df = df.dropna(subset=["report_id", "pt"])
     
     logger.info(f"  {df['pt_clean'].nunique():,} unique MedDRA reaction terms")
     return df
-
 
 def clean_outc(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     """Clean the OUTC (outcomes) table."""
@@ -385,10 +376,9 @@ def clean_outc(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     }
     df["outcome_label"] = df["outc_cod"].map(OUTC_LABELS).fillna("Unknown")
     df["quarter"] = quarter
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
-    df = df.dropna(subset=["primaryid", "outc_cod"])
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
+    df = df.dropna(subset=["report_id", "outc_cod"])
     return df
-
 
 def clean_ther(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     """Clean the THER (therapy dates) table."""
@@ -405,10 +395,9 @@ def clean_ther(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     )
     
     df["quarter"] = quarter
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
-    df = df.dropna(subset=["primaryid"])
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
+    df = df.dropna(subset=["report_id"])
     return df
-
 
 def clean_indi(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
     """Clean the INDI (indications) table."""
@@ -419,10 +408,9 @@ def clean_indi(df: pd.DataFrame, quarter: str) -> pd.DataFrame:
         .str.title()
     )
     df["quarter"] = quarter
-    df["primaryid"] = pd.to_numeric(df["primaryid"], errors="coerce")
-    df = df.dropna(subset=["primaryid"])
+    df["report_id"] = pd.to_numeric(df["report_id"], errors="coerce")
+    df = df.dropna(subset=["report_id"])
     return df
-
 
 # Deduplication (Critical!)
 def deduplicate_demo(demo_df: pd.DataFrame) -> pd.DataFrame:
@@ -450,11 +438,10 @@ def deduplicate_demo(demo_df: pd.DataFrame) -> pd.DataFrame:
     deduped = deduped[deduped["caseversion"] == deduped["max_version"]].drop(columns=["max_version"])
     
     # If still duplicates (same caseid + caseversion), keep first
-    deduped = deduped.drop_duplicates(subset=["primaryid"])
+    deduped = deduped.drop_duplicates(subset=["report_id"])
     
     logger.info(f"  After dedup: {len(deduped):,} unique cases ({len(demo_df) - len(deduped):,} duplicates removed)")
     return deduped
-
 
 # Main Entry Point
 def parse_quarter(ascii_dir: str, quarter: str, status_callback=None) -> dict[str, pd.DataFrame]:
@@ -498,7 +485,7 @@ def parse_quarter(ascii_dir: str, quarter: str, status_callback=None) -> dict[st
         cleaned_df = cleaner(raw_df, quarter)
         tables[table_name] = cleaned_df
         
-        logger.info(f"  ✓ {table_name}: {len(cleaned_df):,} rows cleaned")
+        logger.info(f"   {table_name}: {len(cleaned_df):,} rows cleaned")
     
     # Deduplicate DEMO (must happen after initial clean)
     if "DEMO" in tables:
@@ -509,8 +496,8 @@ def parse_quarter(ascii_dir: str, quarter: str, status_callback=None) -> dict[st
     if rpsr_file:
         rpsr_df = load_raw_table(rpsr_file, "RPSR")
         rpsr_df["quarter"] = quarter
-        rpsr_df["primaryid"] = pd.to_numeric(rpsr_df["primaryid"], errors="coerce")
-        rpsr_df = rpsr_df.dropna(subset=["primaryid"])
+        rpsr_df["report_id"] = pd.to_numeric(rpsr_df["report_id"], errors="coerce")
+        rpsr_df = rpsr_df.dropna(subset=["report_id"])
         tables["RPSR"] = rpsr_df
     
     logger.info(f"{'='*60}")
@@ -519,7 +506,6 @@ def parse_quarter(ascii_dir: str, quarter: str, status_callback=None) -> dict[st
         logger.info(f"  {name:6s}: {len(df):>10,} rows")
     
     return tables
-
 
 if __name__ == "__main__":
     import sys

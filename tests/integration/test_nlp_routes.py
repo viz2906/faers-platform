@@ -7,7 +7,6 @@ No real DB, Redis, or OpenAI calls are made.
 
 import pytest
 
-
 class TestNLPQueryEndpoint:
     """Tests for POST /api/v1/nlp/query"""
 
@@ -94,7 +93,6 @@ class TestNLPQueryEndpoint:
         data = resp.json()
         assert data["row_count"] == len(data["data"])
 
-
 class TestNLPExamplesEndpoint:
     """Tests for GET /api/v1/nlp/examples"""
 
@@ -114,7 +112,6 @@ class TestNLPExamplesEndpoint:
             assert "category" in example
             assert "questions" in example
             assert len(example["questions"]) > 0
-
 
 class TestNLPHistoryEndpoint:
     """Tests for GET /api/v1/nlp/history"""
@@ -140,7 +137,6 @@ class TestNLPHistoryEndpoint:
             assert "generated_sql" in query_record, (
                 "generated_sql must be returned in history for audit purposes"
             )
-
 
 class TestHealthEndpoint:
     """Tests for GET /health"""

@@ -80,13 +80,11 @@ EXPORT_TABLES = {
     },
 }
 
-
 def get_loaded_quarters(conn) -> list[str]:
     """Get all quarters currently loaded in PostgreSQL."""
     with conn.cursor() as cur:
         cur.execute("SELECT DISTINCT quarter FROM faers_demo ORDER BY quarter")
         return [row[0] for row in cur.fetchall()]
-
 
 def export_table_quarter(
     conn,
@@ -130,11 +128,10 @@ def export_table_quarter(
     file_size_mb = output_file.stat().st_size / 1024 / 1024
     elapsed = time.time() - start
     logger.info(
-        f"  ✓ {table_key}/{quarter}: {len(df):,} rows → "
+        f"   {table_key}/{quarter}: {len(df):,} rows → "
         f"{file_size_mb:.1f} MB Parquet in {elapsed:.1f}s"
     )
     return len(df)
-
 
 def export_quarter(quarter: str, overwrite: bool = False) -> dict:
     """Export all tables for a quarter to Parquet."""
@@ -166,7 +163,6 @@ def export_quarter(quarter: str, overwrite: bool = False) -> dict:
     logger.info(f"\nExport complete: {total_rows:,} rows in {elapsed:.1f}s")
     return stats
 
-
 def main():
     parser = argparse.ArgumentParser(description="Export FAERS data to Parquet")
     parser.add_argument("--quarter", type=str, help="Quarter to export (e.g. 2026q1)")
@@ -192,7 +188,6 @@ def main():
         export_quarter(args.quarter, overwrite=args.overwrite)
     else:
         parser.print_help()
-
 
 if __name__ == "__main__":
     main()

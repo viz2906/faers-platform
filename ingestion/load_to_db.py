@@ -8,6 +8,7 @@ Handles schema creation, data type alignment, and materialized view refresh.
 import io
 import os
 import time
+import json
 from typing import Optional
 
 import pandas as pd
@@ -17,7 +18,6 @@ from loguru import logger
 from dotenv import load_dotenv
 
 load_dotenv()
-
 
 # Database Connection
 def get_connection() -> psycopg2.extensions.connection:
@@ -35,39 +35,38 @@ def get_connection() -> psycopg2.extensions.connection:
     conn.commit()
     return conn
 
-
 # Column Mappings (DataFrame → DB column)
 # Only include columns that exist in the DB schema
 # Extra DataFrame columns are ignored
 DB_COLUMNS = {
     "faers_demo": [
-        "primaryid", "caseid", "caseversion", "quarter",
+        "report_id", "caseid", "caseversion", "quarter",
         "i_f_code", "event_dt_parsed", "fda_dt_parsed",
         "rept_cod", "age_years", "sex_clean", "weight_kg",
         "age_group", "reporter_country", "occr_country", "occp_cod",
     ],
     "faers_drug": [
-        "primaryid", "caseid", "drug_seq", "quarter",
+        "report_id", "caseid", "drug_seq", "quarter",
         "role_cod", "drug_role", "drugname", "drugname_clean",
         "prod_ai", "prod_ai_clean", "route", "route_clean",
         "dose_amt", "dose_unit", "dose_form", "dose_freq", "nda_num",
     ],
     "faers_reac": [
-        "primaryid", "caseid", "quarter", "pt", "pt_clean",
+        "report_id", "caseid", "quarter", "pt", "pt_clean",
     ],
     "faers_outc": [
-        "primaryid", "caseid", "quarter", "outc_cod", "outcome_label",
+        "report_id", "caseid", "quarter", "outc_cod", "outcome_label",
     ],
     "faers_ther": [
-        "primaryid", "caseid", "drug_seq", "quarter",
+        "report_id", "caseid", "drug_seq", "quarter",
         "start_dt_parsed", "end_dt_parsed", "dur_days",
     ],
     "faers_indi": [
-        "primaryid", "caseid", "drug_seq", "quarter",
+        "report_id", "caseid", "drug_seq", "quarter",
         "indi_pt", "indi_pt_clean",
     ],
     "faers_rpsr": [
-        "primaryid", "caseid", "quarter", "rpsr_cod",
+        "report_id", "caseid", "quarter", "rpsr_cod",
     ],
 }
 
@@ -88,7 +87,6 @@ COLUMN_RENAMES = {
     "faers_outc": {},
     "faers_rpsr": {},
 }
-
 
 # Core Bulk Loader
 def bulk_load_dataframe(
@@ -122,6 +120,20 @@ def bulk_load_dataframe(
         logger.warning(f"  {table_name}: Missing columns (will be NULL): {missing}")
     
     df_subset = df[available_cols].copy()
+    
+    # SCHEMA DRIFT / JSONB ESCAPE HATCH: 
+    # Capture any unexpected columns from the FDA files into the extended_attributes JSONB column
+    unmapped_cols = [c for c in df.columns if c not in db_cols and c != "quarter"]
+    if unmapped_cols:
+        logger.info(f"  {table_name}: Capturing {len(unmapped_cols)} unmapped columns into extended_attributes JSONB: {unmapped_cols[:5]}...")
+        df_subset["extended_attributes"] = df[unmapped_cols].apply(
+            lambda row: json.dumps({k: v for k, v in row.items() if pd.notnull(v)}), 
+            axis=1
+        )
+    else:
+        df_subset["extended_attributes"] = "{}"
+    
+    available_cols.append("extended_attributes")
     
     # Replace pandas NA/NaN/NaT with None (PostgreSQL NULL)
     df_subset = df_subset.where(pd.notnull(df_subset), None)
@@ -161,14 +173,13 @@ def bulk_load_dataframe(
         conn.commit()
         elapsed = time.time() - start
         rate = len(df_subset) / elapsed if elapsed > 0 else 0
-        logger.info(f"  ✓ {table_name}: {len(df_subset):,} rows in {elapsed:.1f}s ({rate:,.0f} rows/sec)")
+        logger.info(f"   {table_name}: {len(df_subset):,} rows in {elapsed:.1f}s ({rate:,.0f} rows/sec)")
         return len(df_subset)
     
     except Exception as e:
         conn.rollback()
-        logger.error(f"  ✗ Failed loading {table_name}: {e}")
+        logger.error(f"   Failed loading {table_name}: {e}")
         raise
-
 
 # Pre-load checks
 def quarter_already_loaded(conn: psycopg2.extensions.connection, quarter: str) -> bool:
@@ -181,7 +192,6 @@ def quarter_already_loaded(conn: psycopg2.extensions.connection, quarter: str) -
         return True
     return False
 
-
 def delete_quarter(conn: psycopg2.extensions.connection, quarter: str):
     """Remove all data for a specific quarter (for re-loading)."""
     logger.warning(f"Deleting all data for quarter {quarter}...")
@@ -193,7 +203,6 @@ def delete_quarter(conn: psycopg2.extensions.connection, quarter: str):
             logger.info(f"  Deleted from {table}: {cur.rowcount} rows")
     conn.commit()
 
-
 # Materialized View Refresh
 MATERIALIZED_VIEWS = [
     "mv_drug_reaction_pairs",
@@ -204,7 +213,6 @@ MATERIALIZED_VIEWS = [
     "mv_age_sex_distribution",
     "mv_quarterly_trends",
 ]
-
 
 def refresh_materialized_views(conn: psycopg2.extensions.connection, status_callback=None):
     """Refresh all analytics materialized views."""
@@ -226,12 +234,10 @@ def refresh_materialized_views(conn: psycopg2.extensions.connection, status_call
                 cur.execute(f"REFRESH MATERIALIZED VIEW {view}")
                 conn.commit()
                 elapsed = time.time() - start
-                logger.info(f"  ✓ {view}: refreshed in {elapsed:.1f}s")
+                logger.info(f"   {view}: refreshed in {elapsed:.1f}s")
             except Exception as e:
                 conn.rollback()
-                logger.error(f"  ✗ {view}: failed — {e}")
-
-
+                logger.error(f"   {view}: failed — {e}")
 
 # Full Quarter Load Orchestration
 def load_quarter(
@@ -310,7 +316,6 @@ def load_quarter(
     
     finally:
         conn.close()
-
 
 if __name__ == "__main__":
     import sys

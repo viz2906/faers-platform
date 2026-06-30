@@ -14,7 +14,6 @@ from loguru import logger
 from api.dependencies import init_db_pool, init_redis, init_llm
 from api.routes import analytics, nlp, ingestion
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize connections on startup, clean up on shutdown."""
@@ -26,26 +25,16 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down FAERS Analytics API.")
 
-
 app = FastAPI(
     title="FAERS Analytics API",
     description="""
-## FDA Adverse Event Reporting System (FAERS) Analytics Platform
+FDA Adverse Event Reporting System (FAERS) Analytics Platform.
 
-Query the world's largest pharmacovigilance database using:
-- **Pre-built analytics endpoints** for instant insights
-- **Natural language queries** — just ask in plain English
+Pre-built analytics endpoints and a natural language query interface for FAERS data.
 
-### Data Source
-FDA FAERS quarterly data from https://fis.fda.gov/extensions/FPD-QDE-FAERS/FPD-QDE-FAERS.html
+Data source: https://fis.fda.gov/extensions/FPD-QDE-FAERS/FPD-QDE-FAERS.html
 
-### Key Concepts
-- **primaryid**: Unique report identifier
-- **role_cod**: PS=Primary Suspect, SS=Secondary Suspect, C=Concomitant
-- **outc_cod**: DE=Death, LT=Life-Threatening, HO=Hospitalization
-- **PRR**: Proportional Reporting Ratio (safety signal detection)
-
-> ⚠️ FAERS data shows reporting associations, not proven drug causation.
+FAERS data reflects voluntary adverse event reports, not proven drug causation.
     """,
     version="1.0.0",
     docs_url="/docs",
@@ -62,7 +51,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Request timing middleware
 @app.middleware("http")
 async def add_timing_header(request: Request, call_next):
@@ -71,7 +59,6 @@ async def add_timing_header(request: Request, call_next):
     elapsed = round((time.time() - start) * 1000)
     response.headers["X-Response-Time-Ms"] = str(elapsed)
     return response
-
 
 # Global error handler
 @app.exception_handler(Exception)
@@ -82,12 +69,10 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"error": "Internal server error", "detail": str(exc)},
     )
 
-
 # Routes
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["Analytics"])
 app.include_router(nlp.router, prefix="/api/v1/nlp", tags=["Natural Language Query"])
 app.include_router(ingestion.router, prefix="/api/v1", tags=["Ingestion"])
-
 
 @app.get("/", tags=["Health"])
 async def root():
@@ -101,7 +86,6 @@ async def root():
             "nlp_query": "/api/v1/nlp/query",
         },
     }
-
 
 @app.get("/health", tags=["Health"])
 async def health():

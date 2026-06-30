@@ -21,7 +21,6 @@ router = APIRouter()
 DEFAULT_QUARTER = "2026q1"
 CACHE_TTL = 900  # 15 minutes
 
-
 # Response Models
 class DrugReactionRow(BaseModel):
     drug: str
@@ -29,13 +28,11 @@ class DrugReactionRow(BaseModel):
     report_count: int
     quarter: Optional[str] = None
 
-
 class DrugOutcomeRow(BaseModel):
     drug: str
     outcome: str
     outcome_code: str
     report_count: int
-
 
 class SignalRow(BaseModel):
     drug: str
@@ -45,13 +42,11 @@ class SignalRow(BaseModel):
     ror: Optional[float] = None
     is_signal: bool
 
-
 class CountryRow(BaseModel):
     country: str
     report_count: int
     death_count: int
     hospitalization_count: int
-
 
 class QuarterlyTrend(BaseModel):
     quarter: str
@@ -60,7 +55,6 @@ class QuarterlyTrend(BaseModel):
     hospitalizations: int
     life_threatening: int
     avg_age: Optional[float] = None
-
 
 # Helper
 def cached_query(
@@ -90,7 +84,6 @@ def cached_query(
             pass
 
     return rows
-
 
 # Endpoints
 @router.get("/top-drugs", summary="Top drugs by adverse event report count")
@@ -140,7 +133,6 @@ async def top_drugs(
     rows = cached_query(cache, cache_key, conn, sql)
     return {"data": rows, "count": len(rows), "quarter": quarter or "all"}
 
-
 @router.get("/drug/{drug_name}/reactions", summary="Adverse reactions for a specific drug")
 async def drug_reactions(
     drug_name: str,
@@ -174,7 +166,6 @@ async def drug_reactions(
 
     return {"drug": drug_name.upper(), "data": rows, "count": len(rows)}
 
-
 @router.get("/drug/{drug_name}/outcomes", summary="Patient outcomes for a specific drug")
 async def drug_outcomes(
     drug_name: str,
@@ -200,7 +191,6 @@ async def drug_outcomes(
     cache_key = f"faers:drug_outcomes:{drug_name}:{quarter}"
     rows = cached_query(cache, cache_key, conn, sql)
     return {"drug": drug_name.upper(), "data": rows}
-
 
 @router.get("/drug/{drug_name}/signal", summary="Safety signal detection (PRR/ROR) for a drug")
 async def drug_signal(
@@ -249,7 +239,6 @@ async def drug_signal(
                 "This is a statistical association, not proven causation.",
     }
 
-
 @router.get("/drug/{drug_name}/demographics", summary="Patient demographics for a drug")
 async def drug_demographics(
     drug_name: str,
@@ -275,7 +264,6 @@ async def drug_demographics(
     cache_key = f"faers:demographics:{drug_name}:{quarter}"
     rows = cached_query(cache, cache_key, conn, sql)
     return {"drug": drug_name.upper(), "data": rows}
-
 
 @router.get("/deaths/top-drugs", summary="Drugs with most death-associated reports")
 async def death_reports(
@@ -307,7 +295,6 @@ async def death_reports(
                    "This does NOT imply the drug caused the death.",
     }
 
-
 @router.get("/countries", summary="Report distribution by country")
 async def reports_by_country(
     quarter: Optional[str] = Query(None),
@@ -337,7 +324,6 @@ async def reports_by_country(
     rows = cached_query(cache, cache_key, conn, sql)
     return {"data": rows, "count": len(rows)}
 
-
 @router.get("/trends", summary="Quarterly reporting trends over time")
 async def quarterly_trends(
     conn=Depends(get_db),
@@ -355,7 +341,6 @@ async def quarterly_trends(
     cache_key = "faers:trends"
     rows = cached_query(cache, cache_key, conn, sql, ttl=3600)
     return {"data": rows}
-
 
 @router.get("/top-reactions", summary="Most commonly reported reactions overall")
 async def top_reactions(
@@ -380,7 +365,6 @@ async def top_reactions(
     cache_key = f"faers:top_reactions:{quarter}:{limit}"
     rows = cached_query(cache, cache_key, conn, sql)
     return {"data": rows, "count": len(rows)}
-
 
 @router.get("/summary", summary="Overall database summary statistics")
 async def db_summary(

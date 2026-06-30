@@ -25,7 +25,6 @@ from nlp.sql_validator import validate_sql, sanitize_user_input, SQLValidationEr
 
 load_dotenv()
 
-
 # Query Result Type
 class QueryResult:
     def __init__(
@@ -68,7 +67,6 @@ class QueryResult:
             "error": self.error,
         }
 
-
 # Query Router — decides which path to use
 # Patterns that suggest a materialized view can answer the question
 MATERIALIZED_VIEW_PATTERNS = [
@@ -93,7 +91,6 @@ MATERIALIZED_VIEW_PATTERNS = [
     (r'\boutcome\b.*\b(drug|medication)\b', "mv_drug_outcomes"),
 ]
 
-
 def classify_query(question: str) -> str:
     """Classify a question to determine the optimal execution path."""
     q_lower = question.lower()
@@ -101,7 +98,6 @@ def classify_query(question: str) -> str:
         if re.search(pattern, q_lower):
             return f"materialized_view:{view}"
     return "raw_tables"
-
 
 # Main Query Engine
 class FAERSQueryEngine:
@@ -275,11 +271,8 @@ class FAERSQueryEngine:
         logger.info(f"Query complete: {len(data)} rows in {response_time_ms}ms")
         return result
 
-    # ============================================================
-    # SQL Generation
-    # ============================================================
-
-    def _generate_sql(self, question: str) -> str:
+        # SQL Generation
+        def _generate_sql(self, question: str) -> str:
         """Call LLM to generate SQL from natural language."""
         response = self.llm.chat.completions.create(
             model=self.main_model,
@@ -301,11 +294,8 @@ class FAERSQueryEngine:
         
         return sql
 
-    # ============================================================
-    # Execution
-    # ============================================================
-
-    def _execute(self, sql: str) -> tuple[list[str], list[tuple]]:
+        # Execution
+        def _execute(self, sql: str) -> tuple[list[str], list[tuple]]:
         """Execute SQL with timeout enforcement."""
         with self.db.cursor() as cur:
             # Set per-statement timeout
@@ -330,11 +320,8 @@ class FAERSQueryEngine:
         except Exception as e:
             raise Exception(f"Database reconnection failed: {e}")
 
-    # ============================================================
-    # Result Explanation
-    # ============================================================
-
-    def _explain_results(
+        # Result Explanation
+        def _explain_results(
         self, question: str, sql: str,
         columns: list[str], data: list[tuple]
     ) -> str:
@@ -379,11 +366,8 @@ Keep it factual and concise."""
         
         return response.choices[0].message.content.strip()
 
-    # ============================================================
-    # Caching
-    # ============================================================
-
-    def _cache_key(self, question: str) -> str:
+        # Caching
+        def _cache_key(self, question: str) -> str:
         return f"faers:query:{hashlib.md5(question.encode()).hexdigest()}"
 
     def _get_cached(self, key: str) -> Optional[dict]:
@@ -402,11 +386,8 @@ Keep it factual and concise."""
         except Exception as e:
             logger.debug(f"Cache write failed: {e}")
 
-    # ============================================================
-    # Helpers
-    # ============================================================
-
-    def _get_faers_warning(self, question: str) -> Optional[str]:
+        # Helpers
+        def _get_faers_warning(self, question: str) -> Optional[str]:
         """Return contextual FAERS data interpretation warning."""
         q_lower = question.lower()
         if any(w in q_lower for w in ["cause", "causes", "responsible", "proven", "definitely"]):
@@ -442,7 +423,6 @@ Keep it factual and concise."""
             response_time_ms=0,
             error=message,
         )
-
 
 # CLI for testing
 if __name__ == "__main__":

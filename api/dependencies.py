@@ -21,7 +21,6 @@ _db_pool: psycopg2.pool.ThreadedConnectionPool = None
 _redis_client: redis.Redis = None
 _llm_client: OpenAI = None
 
-
 def init_db_pool():
     global _db_pool
     _db_pool = psycopg2.pool.ThreadedConnectionPool(
@@ -35,7 +34,6 @@ def init_db_pool():
         connect_timeout=10,
         options="-c timezone=UTC",
     )
-
 
 def init_redis():
     global _redis_client
@@ -52,7 +50,6 @@ def init_redis():
     except Exception:
         _redis_client = None
 
-
 def init_llm():
     global _llm_client
     _llm_client = OpenAI(
@@ -62,7 +59,6 @@ def init_llm():
         max_retries=2,
     )
 
-
 def get_db():
     """FastAPI dependency: get a DB connection from pool."""
     conn = _db_pool.getconn()
@@ -71,10 +67,8 @@ def get_db():
     finally:
         _db_pool.putconn(conn)
 
-
 def get_redis():
     return _redis_client
-
 
 def get_llm():
     return _llm_client

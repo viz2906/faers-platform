@@ -1,9 +1,6 @@
--- ============================================================
 -- Declarative Partitioning by Quarter (Scaling Step 1)
--- ============================================================
 -- Apply BEFORE loading data for best performance.
 -- Or migrate existing tables using pg_partman.
--- ============================================================
 
 -- DEMO table partitioned by quarter list
 CREATE TABLE IF NOT EXISTS faers_demo_partitioned (
@@ -53,9 +50,7 @@ BEGIN
     END LOOP;
 END $$;
 
--- ============================================================
 -- QUERY PRUNING EXAMPLE
--- ============================================================
 -- This query only scans the 2026q1 partition:
 --   SELECT * FROM faers_demo_partitioned WHERE quarter = '2026q1';
 --
@@ -66,16 +61,12 @@ END $$;
 -- Without partitioning: would scan ALL rows
 -- With partitioning: skips 95%+ of data for single-quarter queries
 
--- ============================================================
 -- Adding new quarter (run each quarter when new data arrives)
--- ============================================================
 -- CREATE TABLE faers_demo_2026_q2
 -- PARTITION OF faers_demo_partitioned
 -- FOR VALUES IN ('2026q2');
 
--- ============================================================
 -- Partition inspection
--- ============================================================
 SELECT
     parent.relname AS parent_table,
     child.relname AS partition_name,

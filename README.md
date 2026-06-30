@@ -1,6 +1,6 @@
 # FDA FAERS Analytics Platform
 
-## 🚀 Quick Start (4 commands)
+##  Quick Start (4 commands)
 
 ```bash
 # 1. Copy and fill environment variables
@@ -25,7 +25,7 @@ cd frontend && npm install && npm run dev
 
 ---
 
-## 📊 What This Does
+##  What This Does
 
 Transforms raw FDA FAERS adverse event data into a queryable analytics platform:
 
@@ -41,38 +41,38 @@ Transforms raw FDA FAERS adverse event data into a queryable analytics platform:
 
 ---
 
-## 🗂️ Project Structure
+##  Project Structure
 
 ```
 faers_platform/
-├── ingestion/              # Data pipeline
-│   ├── parse_faers.py      # ASCII parser (handles latin-1, $-delimiter, bad dates)
-│   ├── load_to_db.py       # PostgreSQL COPY bulk loader
-│   └── quarterly_pipeline.py  # Full orchestration
-├── database/
-│   ├── schema.sql          # All tables + indexes (including GIN trigram)
-│   └── materialized_views.sql  # 9 pre-built analytics views
-├── nlp/
-│   ├── system_prompt.py    # LLM schema context + few-shot examples
-│   ├── query_engine.py     # NL → SQL → Execute → Explain
-│   └── sql_validator.py    # Security guardrails
-├── api/
-│   ├── main.py             # FastAPI app
-│   └── routes/
-│       ├── analytics.py    # 12 pre-built endpoints
-│       └── nlp.py          # NL query endpoint
-├── analytics/
-│   └── duckdb_engine.py    # Columnar analytics (PRR, cross-quarter)
-├── scaling/
-│   ├── parquet_export.py   # PostgreSQL → Parquet files
-│   ├── citus_setup.sql     # Distributed PostgreSQL
-│   └── partitioning.sql    # List partitioning by quarter
-└── frontend/               # Next.js dashboard
+ ingestion/              # Data pipeline
+    parse_faers.py      # ASCII parser (handles latin-1, $-delimiter, bad dates)
+    load_to_db.py       # PostgreSQL COPY bulk loader
+    quarterly_pipeline.py  # Full orchestration
+ database/
+    schema.sql          # All tables + indexes (including GIN trigram)
+    materialized_views.sql  # 9 pre-built analytics views
+ nlp/
+    system_prompt.py    # LLM schema context + few-shot examples
+    query_engine.py     # NL → SQL → Execute → Explain
+    sql_validator.py    # Security guardrails
+ api/
+    main.py             # FastAPI app
+    routes/
+        analytics.py    # 12 pre-built endpoints
+        nlp.py          # NL query endpoint
+ analytics/
+    duckdb_engine.py    # Columnar analytics (PRR, cross-quarter)
+ scaling/
+    parquet_export.py   # PostgreSQL → Parquet files
+    citus_setup.sql     # Distributed PostgreSQL
+    partitioning.sql    # List partitioning by quarter
+ frontend/               # Next.js dashboard
 ```
 
 ---
 
-## 🔌 Key API Endpoints
+##  Key API Endpoints
 
 ```
 GET  /health                                   → System health
@@ -91,7 +91,7 @@ GET  /api/v1/nlp/examples                      → Example questions
 
 ---
 
-## 🧠 NLP Query Examples
+##  NLP Query Examples
 
 ```bash
 # Natural language → SQL in <5 seconds
@@ -110,20 +110,20 @@ Questions you can ask:
 
 ---
 
-## 📈 Scaling Decision Tree
+##  Scaling Decision Tree
 
 ```
                  How many quarters do you have?
-                         │
-              ┌──────────┴──────────┐
+                         
+              
               ≤ 10 quarters          > 10 quarters
-              │                     │
+                                   
    Single PostgreSQL +        Add DuckDB Parquet
    partitions + views         layer for analytics
-   ✓ Works great              │
-   ✓ < 5s response            > 50 quarters (all history)?
-                              │
-                    ┌─────────┴──────────┐
+    Works great              
+    < 5s response            > 50 quarters (all history)?
+                              
+                    
                     Citus (distributed)  S3 + DuckDB
                     Same SQL interface   Cheapest option
                     Linear scaling       Best for pure analytics
@@ -139,7 +139,7 @@ Questions you can ask:
 
 ---
 
-## 📐 Data Schema Quick Reference
+##  Data Schema Quick Reference
 
 | Table | Rows/Quarter | Key Fields |
 |-------|-------------|------------|
@@ -157,7 +157,7 @@ Questions you can ask:
 
 ---
 
-## ⚠️ FAERS Data Interpretation
+##  FAERS Data Interpretation
 
 FAERS is a **spontaneous reporting system**, not a clinical trial:
 

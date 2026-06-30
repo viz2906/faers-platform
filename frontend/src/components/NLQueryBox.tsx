@@ -6,16 +6,7 @@ interface NLQueryBoxProps {
   apiBase: string
 }
 
-const EXAMPLE_QUESTIONS = [
-  "What are the top 20 adverse reactions for aspirin?",
-  "Which drugs have the most death reports?",
-  "Show safety signals for warfarin",
-  "Age distribution of patients reporting reactions to ozempic",
-  "Compare deaths between aspirin and ibuprofen",
-  "Which countries report the most adverse events?",
-  "Show the quarterly trend of total adverse event reports",
-  "What reactions are reported for metformin in elderly patients?",
-]
+
 
 function highlight_sql(sql: string): string {
   return sql
@@ -43,6 +34,27 @@ export default function NLQueryBox({ apiBase }: NLQueryBoxProps) {
   const [error, setError] = useState<string | null>(null)
   const [showSQL, setShowSQL] = useState(true)   // default open — always audit the generated SQL
   const [sqlCopied, setSqlCopied] = useState(false)
+  const [history, setHistory] = useState<any[]>([])
+  const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+  const [loadingHistory, setLoadingHistory] = useState(false)
+
+  const fetchHistory = async () => {
+    if (showHistoryPanel) {
+      setShowHistoryPanel(false)
+      return
+    }
+    setLoadingHistory(true)
+    setShowHistoryPanel(true)
+    try {
+      const res = await fetch(`${apiBase}/nlp/history`)
+      const data = await res.json()
+      setHistory(data.queries || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingHistory(false)
+    }
+  }
 
   const copySQL = useCallback((sql: string) => {
     navigator.clipboard.writeText(sql).then(() => {
@@ -107,20 +119,21 @@ export default function NLQueryBox({ apiBase }: NLQueryBoxProps) {
           value={question}
           onChange={e => setQuestion(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="e.g. What are the most common adverse reactions for warfarin? Show me the death reports for aspirin vs ibuprofen..."
+          placeholder="Type your query here..."
           rows={3}
           disabled={loading}
         />
 
-        <div className="query-actions">
-          {/* Example chips */}
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1 }}>
-            {EXAMPLE_QUESTIONS.slice(0, 4).map((q, i) => (
-              <button key={i} className="chip" onClick={() => submit(q)} disabled={loading}>
-                {q.length > 45 ? q.slice(0, 42) + '...' : q}
-              </button>
-            ))}
-          </div>
+        <div className="query-actions" style={{ justifyContent: 'flex-end' }}>
+
+          <button
+            className="btn btn-ghost"
+            onClick={fetchHistory}
+            disabled={loadingHistory}
+            style={{ flexShrink: 0, marginLeft: 'auto', fontSize: 13 }}
+          >
+            {showHistoryPanel ? 'Close History' : 'View History'}
+          </button>
 
           <button
             className="btn btn-primary"
@@ -140,19 +153,7 @@ export default function NLQueryBox({ apiBase }: NLQueryBoxProps) {
         </div>
       </div>
 
-      {/* More example questions */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '1px' }}>
-          More examples
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {EXAMPLE_QUESTIONS.slice(4).map((q, i) => (
-            <button key={i} className="chip" onClick={() => submit(q)} disabled={loading}>
-              {q}
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       {/* Error */}
       {error && (
@@ -166,6 +167,35 @@ export default function NLQueryBox({ apiBase }: NLQueryBoxProps) {
           marginBottom: 20,
         }}>
           <strong>Error:</strong> {error}
+        </div>
+      )}
+
+      {/* History Panel */}
+      {showHistoryPanel && (
+        <div className="animate-fade-in-up" style={{ marginBottom: 24, background: 'var(--bg-secondary)', padding: 20, borderRadius: 12, border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16 }}>Recent Queries & SQL Audit Log</div>
+          {loadingHistory ? (
+             <div className="skeleton" style={{ height: 100 }} />
+          ) : history.length === 0 ? (
+             <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>No history found.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
+              {history.map((h, i) => (
+                <div key={i} style={{ padding: 12, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Q: {h.question}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
+                    {h.timestamp ? new Date(h.timestamp).toLocaleString() : ''} · {h.response_time_ms}ms {h.error ? <span style={{color:'var(--color-death)'}}>Failed</span> : `· ${h.rows_returned} rows`}
+                  </div>
+                  {h.generated_sql && (
+                    <div className="sql-block" style={{ margin: 0, padding: '8px 12px', fontSize: 11 }} dangerouslySetInnerHTML={{ __html: highlight_sql(h.generated_sql) }} />
+                  )}
+                  {h.error && (
+                    <div style={{ color: 'var(--color-death)', fontSize: 11, marginTop: 8 }}>Error: {h.error}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

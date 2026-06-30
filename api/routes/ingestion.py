@@ -26,14 +26,12 @@ ingestion_status: Dict[str, Any] = {
     "log": [],  # live log lines
 }
 
-
 def _add_log(message: str):
     ts = datetime.utcnow().strftime("%H:%M:%S")
     ingestion_status["log"].append(f"[{ts}] {message}")
     # Keep log from growing unbounded
     if len(ingestion_status["log"]) > MAX_LOG_LINES:
         ingestion_status["log"] = ingestion_status["log"][-MAX_LOG_LINES:]
-
 
 def load_data_background(quarter: str):
     global ingestion_status
@@ -86,7 +84,6 @@ def load_data_background(quarter: str):
             ingestion_status["end_time"] = time.time()
             _add_log(f"ERROR: {str(e)}")
 
-
 @router.post("/load/{quarter}")
 async def start_ingestion(quarter: str, background_tasks: BackgroundTasks):
     global ingestion_status
@@ -96,7 +93,6 @@ async def start_ingestion(quarter: str, background_tasks: BackgroundTasks):
     quarter = quarter.lower().strip()
     background_tasks.add_task(load_data_background, quarter)
     return {"message": f"Ingestion started for {quarter}", "status": "running"}
-
 
 @router.post("/stop")
 async def stop_ingestion():
@@ -120,7 +116,6 @@ async def stop_ingestion():
 
         return {"message": "Ingestion stopped"}
     return {"message": "No ingestion running"}
-
 
 @router.get("/status")
 async def get_ingestion_status():

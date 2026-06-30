@@ -10,7 +10,6 @@ import json
 import psycopg2
 from unittest.mock import MagicMock, patch, call
 
-
 # _execute path — timeout and execution error handling
 class TestQueryExecutionPaths:
     """Tests for the _execute method and its error paths."""
@@ -96,7 +95,6 @@ class TestQueryExecutionPaths:
             result = engine.query("top drugs")
             assert result.error is not None
 
-
 # _log_query path
 class TestQueryLogging:
     """Tests for query logging to nlq_query_log table."""
@@ -141,7 +139,6 @@ class TestQueryLogging:
         # Should NOT raise even if logging fails
         result = engine.query("top drugs")
         assert result is not None
-
 
 # _explain_results path
 class TestExplanationGeneration:
@@ -195,8 +192,8 @@ class TestExplanationGeneration:
 
         llm = MagicMock()
         llm.chat.completions.create.side_effect = [
-            sql_response,               # first call: SQL generation ✓
-            Exception("LLM rate limit") # second call: explanation ✗
+            sql_response,               # first call: SQL generation 
+            Exception("LLM rate limit") # second call: explanation 
         ]
 
         engine = FAERSQueryEngine(
@@ -209,7 +206,6 @@ class TestExplanationGeneration:
         result = engine.query("top drugs")
         assert result.error is None, "Query must succeed even if explanation fails"
         assert result.data is not None
-
 
 # Cache write path
 class TestCacheWrite:
@@ -247,7 +243,6 @@ class TestCacheWrite:
         )
         result = engine.query("top drugs")
         assert result.error is None
-
 
 # _get_faers_warning
 class TestFAERSWarnings:

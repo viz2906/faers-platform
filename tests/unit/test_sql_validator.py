@@ -14,7 +14,6 @@ from nlp.sql_validator import (
     ALLOWED_READ_TABLES,
 )
 
-
 # Valid SQL — must PASS validation
 class TestValidSQL:
     """SQL that should pass all validation checks."""
@@ -77,7 +76,6 @@ class TestValidSQL:
             ") sub ORDER BY cnt DESC LIMIT 10"
         )
         assert validate_sql(sql)
-
 
 # Blocked SQL — must RAISE SQLValidationError
 class TestBlockedSQL:
@@ -162,7 +160,6 @@ class TestBlockedSQL:
         """Every DDL keyword must be blocked, parametrized for completeness."""
         with pytest.raises(SQLValidationError):
             validate_sql(f"{keyword} TABLE faers_demo")
-
 
 # sanitize_user_input — NL query sanitization
 class TestSanitizeUserInput:

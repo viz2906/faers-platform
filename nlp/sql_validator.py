@@ -11,7 +11,6 @@ from sqlparse.sql import Statement
 from sqlparse.tokens import Keyword, DDL, DML
 from typing import Optional
 
-
 # Allowed Tables and Views
 ALLOWED_READ_TABLES = frozenset({
     # Raw tables
@@ -58,11 +57,9 @@ BLOCKED_SCHEMAS = frozenset({
 MAX_QUERY_LENGTH = 5000    # Characters
 MAX_LIMIT_VALUE = 10000    # Max rows to return
 
-
 class SQLValidationError(Exception):
     """Raised when SQL fails security or correctness validation."""
     pass
-
 
 def validate_sql(sql: str) -> str:
     """
@@ -144,7 +141,6 @@ def validate_sql(sql: str) -> str:
     
     return sql
 
-
 def _validate_table_names(sql: str):
     """Extract table names from SQL and verify they're in the allowed list."""
     
@@ -174,7 +170,6 @@ def _validate_table_names(sql: str):
                 f"Allowed tables: {', '.join(sorted(ALLOWED_READ_TABLES))}"
             )
 
-
 def _extract_cte_names(sql: str) -> set:
     """Extract CTE (WITH clause) alias names."""
     cte_pattern = re.compile(
@@ -182,7 +177,6 @@ def _extract_cte_names(sql: str) -> set:
         re.IGNORECASE
     )
     return {m.lower() for m in cte_pattern.findall(sql)}
-
 
 def _validate_limit(sql: str):
     """Ensure LIMIT values are reasonable."""
@@ -195,7 +189,6 @@ def _validate_limit(sql: str):
                 f"LIMIT {limit_val} exceeds maximum allowed ({MAX_LIMIT_VALUE}). "
                 f"Use a smaller LIMIT."
             )
-
 
 def sanitize_user_input(text: str) -> str:
     """
@@ -225,7 +218,6 @@ def sanitize_user_input(text: str) -> str:
     
     return text.strip()
 
-
 if __name__ == "__main__":
     # Test the validator
     test_cases = [
@@ -233,7 +225,7 @@ if __name__ == "__main__":
         ("Valid: simple SELECT",
          "SELECT drugname_clean, report_count FROM mv_top_drugs LIMIT 10"),
         ("Valid: join query",
-         "SELECT d.drugname_clean, r.pt_clean FROM faers_drug d JOIN faers_reac r ON d.primaryid = r.primaryid LIMIT 5"),
+         "SELECT d.drugname_clean, r.pt_clean FROM faers_drug d JOIN faers_reac r ON d.report_id = r.report_id LIMIT 5"),
         # Invalid queries
         ("Invalid: DROP",
          "SELECT * FROM faers_demo; DROP TABLE faers_demo;"),
@@ -252,6 +244,6 @@ if __name__ == "__main__":
     for name, sql in test_cases:
         try:
             result = validate_sql(sql)
-            print(f"✓ PASS  {name}")
+            print(f" PASS  {name}")
         except SQLValidationError as e:
-            print(f"✗ BLOCK {name}: {e}")
+            print(f" BLOCK {name}: {e}")

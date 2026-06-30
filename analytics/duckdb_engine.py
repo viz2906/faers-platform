@@ -19,7 +19,6 @@ import pandas as pd
 import duckdb
 from loguru import logger
 
-
 # DuckDB Connection (in-process, no server needed)
 class DuckDBEngine:
     """
@@ -122,7 +121,6 @@ class DuckDBEngine:
         if self._conn:
             self._conn.close()
             self._conn = None
-
 
 # Pre-built Heavy Analytics Queries
 class FAERSHeavyAnalytics:
@@ -268,7 +266,6 @@ class FAERSHeavyAnalytics:
         LIMIT 500
         """
         return self.engine.query(sql)
-
 
 # CLI test
 if __name__ == "__main__":

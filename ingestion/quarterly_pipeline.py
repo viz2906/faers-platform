@@ -36,7 +36,6 @@ AVAILABLE_QUARTERS = [
     "2022q4", "2022q3", "2022q2", "2022q1",
 ]
 
-
 def download_quarter(quarter: str, data_dir: str = "./data/raw") -> bool:
     """Download a quarter using the shell script."""
     script = Path(__file__).parent.parent / "scripts" / "download.sh"
@@ -53,7 +52,6 @@ def download_quarter(quarter: str, data_dir: str = "./data/raw") -> bool:
         capture_output=False,
     )
     return result.returncode == 0
-
 
 def run_pipeline(
     quarter: str,
@@ -133,10 +131,9 @@ def run_pipeline(
     table.add_row("[bold]TOTAL", f"[bold]{total:,}")
     
     console.print(table)
-    console.print(f"\n[bold green]✓ Pipeline complete in {elapsed:.1f}s[/bold green]")
+    console.print(f"\n[bold green] Pipeline complete in {elapsed:.1f}s[/bold green]")
     
     return stats
-
 
 def main():
     parser = argparse.ArgumentParser(description="FAERS Quarterly Data Pipeline")
@@ -191,7 +188,6 @@ def main():
             download=not args.no_download,
             skip_views=args.skip_views,
         )
-
 
 if __name__ == "__main__":
     main()
