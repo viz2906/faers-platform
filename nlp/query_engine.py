@@ -271,8 +271,8 @@ class FAERSQueryEngine:
         logger.info(f"Query complete: {len(data)} rows in {response_time_ms}ms")
         return result
 
-        # SQL Generation
-        def _generate_sql(self, question: str) -> str:
+    # SQL Generation
+    def _generate_sql(self, question: str) -> str:
         """Call LLM to generate SQL from natural language."""
         response = self.llm.chat.completions.create(
             model=self.main_model,
@@ -294,8 +294,8 @@ class FAERSQueryEngine:
         
         return sql
 
-        # Execution
-        def _execute(self, sql: str) -> tuple[list[str], list[tuple]]:
+    # Execution
+    def _execute(self, sql: str) -> tuple[list[str], list[tuple]]:
         """Execute SQL with timeout enforcement."""
         with self.db.cursor() as cur:
             # Set per-statement timeout
@@ -320,8 +320,8 @@ class FAERSQueryEngine:
         except Exception as e:
             raise Exception(f"Database reconnection failed: {e}")
 
-        # Result Explanation
-        def _explain_results(
+    # Result Explanation
+    def _explain_results(
         self, question: str, sql: str,
         columns: list[str], data: list[tuple]
     ) -> str:
@@ -366,8 +366,8 @@ Keep it factual and concise."""
         
         return response.choices[0].message.content.strip()
 
-        # Caching
-        def _cache_key(self, question: str) -> str:
+    # Caching
+    def _cache_key(self, question: str) -> str:
         return f"faers:query:{hashlib.md5(question.encode()).hexdigest()}"
 
     def _get_cached(self, key: str) -> Optional[dict]:
@@ -386,8 +386,8 @@ Keep it factual and concise."""
         except Exception as e:
             logger.debug(f"Cache write failed: {e}")
 
-        # Helpers
-        def _get_faers_warning(self, question: str) -> Optional[str]:
+    # Helpers
+    def _get_faers_warning(self, question: str) -> Optional[str]:
         """Return contextual FAERS data interpretation warning."""
         q_lower = question.lower()
         if any(w in q_lower for w in ["cause", "causes", "responsible", "proven", "definitely"]):

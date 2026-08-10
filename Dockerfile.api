@@ -1,19 +1,64 @@
-FROM python:3.11-slim
+# ── Stage 1: builder ──────────────────────────────────────────────────────────
+# Install all Python dependencies into an isolated virtualenv.
+# Build tools (gcc, libpq-dev) stay in this stage and never reach the runtime.
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential libpq-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Isolated venv — clean separation from system Python
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY pyproject.toml .
+# Upgrade pip first, then install production deps only (no [dev] extras)
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir .
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+# Slim image with only the venv and application code — no build tools.
+FROM python:3.12-slim AS runtime
+
+# Runtime-only system libs (libpq5 for psycopg2, curl for HEALTHCHECK)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq5 curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root user — never run app code as root in production
+RUN groupadd --gid 1001 faers \
+ && useradd --uid 1001 --gid faers --no-create-home --shell /sbin/nologin faers
 
 WORKDIR /app
 
-# Install dependencies first for caching
-COPY pyproject.toml .
-RUN pip install -e .
+# Copy the pre-built venv from the builder — no pip, no gcc, no build artefacts
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy application code
-COPY api/ api/
-COPY nlp/ nlp/
+# Copy only the modules the application needs at runtime
+# .env, data/, tests/, scripts/ are intentionally excluded via .dockerignore
+COPY api/       api/
+COPY nlp/       nlp/
 COPY analytics/ analytics/
-COPY database/ database/
+COPY database/  database/
 
-# Expose API port
+# Hand ownership to the non-root user
+RUN chown -R faers:faers /app
+USER faers
+
 EXPOSE 8000
 
-# Run FastAPI server
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# /livez returns {"ok": true} with zero DB I/O — safe to poll every 30s.
+# /health (with DB probe) is left for observability dashboards, not HEALTHCHECK.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8000/livez || exit 1
+
+# All secrets (DB credentials, API keys) must be supplied as environment
+# variables at container runtime — none are baked into this image.
+CMD ["uvicorn", "api.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "4", \
+     "--no-access-log"]

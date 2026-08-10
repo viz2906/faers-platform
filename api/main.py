@@ -87,6 +87,12 @@ async def root():
         },
     }
 
+@app.get("/livez", tags=["Health"], include_in_schema=False)
+async def liveness():
+    """Lightweight liveness probe — no I/O, used by Docker HEALTHCHECK."""
+    return {"ok": True}
+
+
 @app.get("/health", tags=["Health"])
 async def health():
     from api.dependencies import _db_pool, _redis_client

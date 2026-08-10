@@ -50,11 +50,22 @@ def mock_db(sample_columns, sample_drug_rows):
     Mock psycopg2 connection that returns deterministic FAERS data.
     Cursor context manager is fully simulated.
     """
+    from datetime import datetime, timezone
+
     mock_cursor = MagicMock()
     mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
     mock_cursor.__exit__ = MagicMock(return_value=False)
     mock_cursor.description = [(col,) for col in sample_columns]
-    mock_cursor.fetchall.return_value = sample_drug_rows
+
+    def fetchall_side_effect():
+        executed_sql = str(mock_cursor.execute.call_args)
+        if "nlq_query_log" in executed_sql:
+            return [
+                ("What are the top drugs?", "SELECT * FROM mv_top_drugs", 120, 10, False, None, datetime.now(timezone.utc))
+            ]
+        return sample_drug_rows
+
+    mock_cursor.fetchall.side_effect = fetchall_side_effect
 
     mock_conn = MagicMock()
     mock_conn.cursor.return_value = mock_cursor
@@ -157,19 +168,27 @@ def mock_engine(mock_db, mock_redis, mock_llm):
 @pytest.fixture
 def test_client(mock_db, mock_redis, mock_llm):
     """
-    FastAPI TestClient with mocked dependencies injected.
+    FastAPI TestClient with mocked dependencies injected via app.dependency_overrides.
     Use this for integration tests of API routes.
     """
     from api.main import app
     from api import dependencies
 
-    # Patch the module-level connection pool / clients
+    app.dependency_overrides[dependencies.get_db] = lambda: mock_db
+    app.dependency_overrides[dependencies.get_redis] = lambda: mock_redis
+    app.dependency_overrides[dependencies.get_llm] = lambda: mock_llm
+
+    # Also patch connection pool for routes that use _db_pool directly
     with patch.object(dependencies, "_db_pool") as mock_pool, \
-         patch.object(dependencies, "_redis_client", mock_redis), \
-         patch.object(dependencies, "_llm_client", mock_llm):
+         patch.object(dependencies, "init_db_pool", lambda: None), \
+         patch.object(dependencies, "init_redis", lambda: None), \
+         patch.object(dependencies, "init_llm", lambda: None):
 
         mock_pool.getconn.return_value = mock_db
         mock_pool.putconn = MagicMock()
 
         with TestClient(app, raise_server_exceptions=False) as client:
             yield client
+
+    app.dependency_overrides.clear()
+

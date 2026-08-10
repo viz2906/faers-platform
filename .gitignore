@@ -67,7 +67,18 @@ venv.bak/
 .DS_Store
 
 # FAERS Data
-data/raw/*
-!data/raw/.gitkeep
-data/parquet/*
-!data/parquet/.gitkeep
+data/*
+!data/.gitkeep
+!data/**/.gitkeep
+
+# Terraform — never commit state files or provider binaries
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate
+terraform/terraform.tfstate.backup
+terraform/terraform.tfstate.*.backup
+terraform/*.tfplan
+terraform/destroy-plan
+terraform/terraform.tfvars     # May contain real secrets — use .example instead
+terraform/crash.log
+

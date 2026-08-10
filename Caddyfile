@@ -1,0 +1,77 @@
+# =============================================================
+# Caddyfile — FAERS Analytics Platform reverse proxy
+# =============================================================
+#
+# Usage:
+#   Set APP_DOMAIN in your .env (e.g. APP_DOMAIN=faers.example.com)
+#   Caddy obtains and auto-renews a Let's Encrypt TLS certificate.
+#
+# Local dev (no real domain / no TLS):
+#   Replace the site address block with `:80` and remove the tls line.
+# =============================================================
+
+{env.APP_DOMAIN} {
+
+    # ---------- TLS via Let's Encrypt (automatic) ----------
+    # Caddy handles ACME negotiation over port 80/443 automatically.
+    # To use a custom email for cert expiry notices, uncomment:
+    # tls {env.ACME_EMAIL}
+
+    # ---------- Logging ----------
+    log {
+        output stderr
+        format json
+        level  INFO
+    }
+
+    # ---------- API — /api/* and /docs /redoc /openapi.json /health /livez ----------
+    # Route everything that belongs to FastAPI before the catch-all frontend rule.
+    @api {
+        path /api/*
+        path /docs
+        path /docs/*
+        path /redoc
+        path /openapi.json
+        path /health
+        path /livez
+    }
+    reverse_proxy @api api:8000 {
+        # Pass the real client IP through to FastAPI
+        header_up X-Real-IP        {remote_host}
+        header_up X-Forwarded-For  {remote_host}
+        header_up X-Forwarded-Proto https
+
+        # Health probes against the lightweight /livez endpoint
+        health_uri     /livez
+        health_interval 30s
+        health_timeout  5s
+
+        transport http {
+            # Keep connections alive inside the Docker network
+            keepalive          30s
+            keepalive_idle_conns 10
+        }
+    }
+
+    # ---------- Frontend — everything else ----------
+    reverse_proxy frontend:3000 {
+        header_up X-Real-IP        {remote_host}
+        header_up X-Forwarded-For  {remote_host}
+        header_up X-Forwarded-Proto https
+
+        transport http {
+            keepalive          30s
+            keepalive_idle_conns 10
+        }
+    }
+
+    # ---------- Security headers ----------
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        # Remove Caddy's Server header to avoid version fingerprinting
+        -Server
+    }
+}

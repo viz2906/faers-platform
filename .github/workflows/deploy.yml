@@ -1,0 +1,534 @@
+# ==============================================================================
+# GitHub Actions — Deploy to AWS (push to main only)
+#
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │  REQUIRED AWS SETUP (one-time, before first run)                       │
+# │                                                                         │
+# │  1. Create the GitHub OIDC provider in your AWS account:               │
+# │       terraform apply -target=aws_iam_openid_connect_provider.github   │
+# │     (defined in terraform/github_oidc.tf)                              │
+# │                                                                         │
+# │  2. Create the deployer IAM role:                                       │
+# │       terraform apply -target=aws_iam_role.github_actions_deploy       │
+# │     The role ARN will be printed as the `github_actions_role_arn`      │
+# │     Terraform output.                                                   │
+# │                                                                         │
+# │  3. Add two GitHub Actions secrets to this repository:                 │
+# │       AWS_ACCOUNT_ID  — your 12-digit AWS account number               │
+# │       AWS_REGION      — e.g. us-east-1                                 │
+# │     (The role ARN is constructed dynamically from these two values.)   │
+# │                                                                         │
+# │  4. Add repository variables (Settings → Variables → Actions):         │
+# │       TF_ENVIRONMENT  — e.g. prod   (matches terraform var.environment)│
+# │       TF_PROJECT      — e.g. faers  (matches terraform var.project)    │
+# │                                                                         │
+# │  No long-lived AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY are needed.  │
+# │  The OIDC provider lets GitHub exchange a short-lived JWT for an       │
+# │  IAM role credential that expires after 1 hour.                        │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Pipeline stages:
+#   1. test        — pytest + next build (must pass before deploy)
+#   2. build-push  — docker build + tag with git SHA + push to ECR
+#   3. deploy-api  — register new ECS task def + update ECS service (API)
+#   4. deploy-frontend — same for frontend service
+# ==============================================================================
+
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  # Allow manual deploys from the Actions UI (useful for rollbacks)
+  workflow_dispatch:
+    inputs:
+      api_image_tag:
+        description: "API image tag to deploy (leave blank to build from HEAD)"
+        required: false
+        default: ""
+      frontend_image_tag:
+        description: "Frontend image tag to deploy (leave blank to build from HEAD)"
+        required: false
+        default: ""
+
+# Only one deploy pipeline may run at a time — prevent concurrent deploys
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false   # Do NOT cancel in-progress deploys; queue instead
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  # ECR repo names match terraform: ${project}-${environment}-api/frontend
+  # e.g. faers-prod-api, faers-prod-frontend
+  ECR_API_REPO:      ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-api
+  ECR_FRONTEND_REPO: ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-frontend
+  # ECS cluster / service names also match terraform locals
+  ECS_CLUSTER:          ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-cluster
+  ECS_API_SERVICE:      ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-api
+  ECS_FRONTEND_SERVICE: ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-frontend
+  # ECS task definition family names
+  ECS_API_TASK_FAMILY:      ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-api
+  ECS_FRONTEND_TASK_FAMILY: ${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-frontend
+
+jobs:
+  # ============================================================================
+  # Stage 1: Tests & Build Verification
+  # Must pass before any image is pushed or deployed.
+  # ============================================================================
+  test:
+    name: Tests & Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---- Backend: lint, type-check, pytest --------------------------------
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install Python dependencies
+        run: pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Lint with Ruff
+        run: ruff check .
+
+      - name: Type-check with mypy
+        run: mypy api/ nlp/
+
+      - name: Run pytest (unit + integration, skip slow)
+        run: |
+          pytest -m "not slow" \
+            --tb=short \
+            --cov=api --cov=nlp --cov=analytics \
+            --cov-report=xml:coverage.xml \
+            -q
+
+      # ---- Frontend: type-check + build ------------------------------------
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+        working-directory: frontend
+
+      - name: next build (smoke test — no real API URL needed at build time)
+        run: npm run build
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_API_URL: "https://placeholder.example.com/api/v1"
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # ============================================================================
+  # Stage 2: Build Docker images and push to ECR
+  # ============================================================================
+  build-push:
+    name: Build & Push Images to ECR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: test   # Only runs if tests pass
+
+    # Expose the computed image tag to downstream jobs
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      api_image: ${{ steps.meta.outputs.api_image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+
+    # ---- OIDC permission: allow requesting a GitHub OIDC JWT ---------------
+    permissions:
+      contents: read
+      id-token: write   # REQUIRED for OIDC — lets GHA mint a JWT for AWS STS
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── AWS Authentication via OIDC ────────────────────────────────────────
+      # No long-lived credentials. GitHub exchanges a short-lived OIDC JWT for
+      # temporary IAM credentials (valid 1 hour) via AWS STS AssumeRoleWithWebIdentity.
+      # The trust policy on the IAM role is defined in terraform/github_oidc.tf.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          # Mask the account ID in all log output
+          mask-aws-account-id: true
+
+      # ── ECR Login ─────────────────────────────────────────────────────────
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Compute image tag and full URIs ───────────────────────────────────
+      - name: Compute image tag and URIs
+        id: meta
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          # Use manual input tag if provided (workflow_dispatch), else git SHA
+          OVERRIDE_API:      ${{ github.event.inputs.api_image_tag }}
+          OVERRIDE_FRONTEND: ${{ github.event.inputs.frontend_image_tag }}
+        run: |
+          SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+
+          API_TAG="${OVERRIDE_API:-sha-${SHA}}"
+          FE_TAG="${OVERRIDE_FRONTEND:-sha-${SHA}}"
+
+          API_IMAGE="${REGISTRY}/${{ env.ECR_API_REPO }}:${API_TAG}"
+          FE_IMAGE="${REGISTRY}/${{ env.ECR_FRONTEND_REPO }}:${FE_TAG}"
+
+          echo "image_tag=sha-${SHA}"    >> "$GITHUB_OUTPUT"
+          echo "api_image=${API_IMAGE}"  >> "$GITHUB_OUTPUT"
+          echo "frontend_image=${FE_IMAGE}" >> "$GITHUB_OUTPUT"
+
+          # Summary visible in the Actions run page
+          echo "### Image Tags" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tag |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-----|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API | \`${API_TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Frontend | \`${FE_TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Build & push API image ────────────────────────────────────────────
+      - name: Build API Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.api
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.api_image }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API_REPO }}:latest
+          # Docker layer cache — dramatically speeds up repeat builds
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API_REPO }}:buildcache
+          cache-to:   type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_API_REPO }}:buildcache,mode=max
+          provenance: false   # Disable provenance attestation (not needed for ECR)
+
+      # ── Build & push Frontend image ───────────────────────────────────────
+      - name: Build Frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend_image }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://${{ vars.APP_DOMAIN }}/api/v1
+          cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:buildcache
+          cache-to:   type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:buildcache,mode=max
+          provenance: false
+
+  # ============================================================================
+  # Stage 3: Blue/Green Deploy — API via CodeDeploy
+  # ============================================================================
+  deploy-api:
+    name: Deploy API (CodeDeploy Blue/Green)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20   # 10-min linear shift + 5-min bake + headroom
+    needs: build-push
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # ── Step 1: Download & patch the task definition ──────────────────────
+      # CodeDeploy needs a registered task definition ARN — it does not accept
+      # the raw JSON directly. We download the current live revision, patch the
+      # container image, then register a new revision.
+
+      - name: Download current API task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ env.ECS_API_TASK_FAMILY }}" \
+            --query taskDefinition \
+            > api-task-def.json
+
+      - name: Patch API container image in task definition
+        id: render-api
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: api-task-def.json
+          container-name: api
+          image: ${{ needs.build-push.outputs.api_image }}
+
+      - name: Register new API task definition revision
+        id: register-api
+        run: |
+          # Strip read-only fields that the register call rejects
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$(cat ${{ steps.render-api.outputs.task-definition }} \
+              | jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)')" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_def_arn=${NEW_ARN}" >> "$GITHUB_OUTPUT"
+          echo "Registered new task definition: **${NEW_ARN}**" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Step 2: Write the CodeDeploy AppSpec ──────────────────────────────
+      # The AppSpec tells CodeDeploy which task definition to deploy, which
+      # container/port to register with the target groups, and which lifecycle
+      # hooks (if any) to run.
+      # See: https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-resources.html
+
+      - name: Write CodeDeploy AppSpec (API)
+        run: |
+          cat > appspec-api.json <<EOF
+          {
+            "version": 1,
+            "Resources": [
+              {
+                "TargetService": {
+                  "Type": "AWS::ECS::Service",
+                  "Properties": {
+                    "TaskDefinition": "${{ steps.register-api.outputs.task_def_arn }}",
+                    "LoadBalancerInfo": {
+                      "ContainerName": "api",
+                      "ContainerPort": 8000
+                    },
+                    "PlatformVersion": "LATEST",
+                    "NetworkConfiguration": {
+                      "AwsvpcConfiguration": {
+                        "Subnets": $(aws ecs describe-services \
+                          --cluster "${{ env.ECS_CLUSTER }}" \
+                          --services "${{ env.ECS_API_SERVICE }}" \
+                          --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+                          --output json),
+                        "SecurityGroups": $(aws ecs describe-services \
+                          --cluster "${{ env.ECS_CLUSTER }}" \
+                          --services "${{ env.ECS_API_SERVICE }}" \
+                          --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+                          --output json),
+                        "AssignPublicIp": "DISABLED"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+      # ── Step 3: Create the CodeDeploy deployment ──────────────────────────
+
+      - name: Create CodeDeploy deployment (API)
+        id: codedeploy-api
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-api" \
+            --deployment-group-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-api-dg" \
+            --deployment-config-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-linear-10pct-1min" \
+            --description "SHA ${{ needs.build-push.outputs.image_tag }} deployed by GitHub Actions run #${{ github.run_number }}" \
+            --revision "revisionType=AppSpecContent,appSpecContent={content='$(cat appspec-api.json | jq -c . | jq -Rs .)'}" \
+            --query 'deploymentId' \
+            --output text)
+
+          echo "deployment_id=${DEPLOYMENT_ID}" >> "$GITHUB_OUTPUT"
+          echo "### CodeDeploy — API" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment ID: \`${DEPLOYMENT_ID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Console: https://${{ env.AWS_REGION }}.console.aws.amazon.com/codesuite/codedeploy/deployments/${DEPLOYMENT_ID}" >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Step 4: Poll until success or failure ─────────────────────────────
+      # CodeDeploy shifts traffic linearly over ~10 minutes. This step blocks
+      # the Actions job until CodeDeploy reports a terminal status.
+
+      - name: Wait for API deployment to succeed
+        run: |
+          DEPLOYMENT_ID="${{ steps.codedeploy-api.outputs.deployment_id }}"
+          echo "Waiting for CodeDeploy deployment ${DEPLOYMENT_ID}..."
+
+          while true; do
+            STATUS=$(aws deploy get-deployment \
+              --deployment-id "${DEPLOYMENT_ID}" \
+              --query 'deploymentInfo.status' \
+              --output text)
+            echo "  Status: ${STATUS}"
+
+            case "${STATUS}" in
+              Succeeded)
+                echo "✅ Deployment succeeded." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              Failed|Stopped)
+                ERROR=$(aws deploy get-deployment \
+                  --deployment-id "${DEPLOYMENT_ID}" \
+                  --query 'deploymentInfo.errorInformation.message' \
+                  --output text 2>/dev/null || echo "unknown error")
+                echo "❌ Deployment ${STATUS}: ${ERROR}" >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+                ;;
+              *)
+                sleep 30
+                ;;
+            esac
+          done
+
+  # ============================================================================
+  # Stage 4: Blue/Green Deploy — Frontend via CodeDeploy
+  # ============================================================================
+  deploy-frontend:
+    name: Deploy Frontend (CodeDeploy Blue/Green)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-push
+    environment: production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-github-actions-deploy
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Download current Frontend task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ env.ECS_FRONTEND_TASK_FAMILY }}" \
+            --query taskDefinition \
+            > frontend-task-def.json
+
+      - name: Patch Frontend container image in task definition
+        id: render-frontend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend-task-def.json
+          container-name: frontend
+          image: ${{ needs.build-push.outputs.frontend_image }}
+
+      - name: Register new Frontend task definition revision
+        id: register-frontend
+        run: |
+          NEW_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$(cat ${{ steps.render-frontend.outputs.task-definition }} \
+              | jq 'del(.taskDefinitionArn,.revision,.status,.requiresAttributes,.compatibilities,.registeredAt,.registeredBy)')" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+          echo "task_def_arn=${NEW_ARN}" >> "$GITHUB_OUTPUT"
+          echo "Registered new task definition: **${NEW_ARN}**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write CodeDeploy AppSpec (Frontend)
+        run: |
+          cat > appspec-frontend.json <<EOF
+          {
+            "version": 1,
+            "Resources": [
+              {
+                "TargetService": {
+                  "Type": "AWS::ECS::Service",
+                  "Properties": {
+                    "TaskDefinition": "${{ steps.register-frontend.outputs.task_def_arn }}",
+                    "LoadBalancerInfo": {
+                      "ContainerName": "frontend",
+                      "ContainerPort": 3000
+                    },
+                    "PlatformVersion": "LATEST",
+                    "NetworkConfiguration": {
+                      "AwsvpcConfiguration": {
+                        "Subnets": $(aws ecs describe-services \
+                          --cluster "${{ env.ECS_CLUSTER }}" \
+                          --services "${{ env.ECS_FRONTEND_SERVICE }}" \
+                          --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+                          --output json),
+                        "SecurityGroups": $(aws ecs describe-services \
+                          --cluster "${{ env.ECS_CLUSTER }}" \
+                          --services "${{ env.ECS_FRONTEND_SERVICE }}" \
+                          --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+                          --output json),
+                        "AssignPublicIp": "DISABLED"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+      - name: Create CodeDeploy deployment (Frontend)
+        id: codedeploy-frontend
+        run: |
+          DEPLOYMENT_ID=$(aws deploy create-deployment \
+            --application-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-frontend" \
+            --deployment-group-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-frontend-dg" \
+            --deployment-config-name "${{ vars.TF_PROJECT }}-${{ vars.TF_ENVIRONMENT }}-linear-10pct-1min" \
+            --description "SHA ${{ needs.build-push.outputs.image_tag }} deployed by GitHub Actions run #${{ github.run_number }}" \
+            --revision "revisionType=AppSpecContent,appSpecContent={content='$(cat appspec-frontend.json | jq -c . | jq -Rs .)'}" \
+            --query 'deploymentId' \
+            --output text)
+
+          echo "deployment_id=${DEPLOYMENT_ID}" >> "$GITHUB_OUTPUT"
+          echo "### CodeDeploy — Frontend" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployment ID: \`${DEPLOYMENT_ID}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Console: https://${{ env.AWS_REGION }}.console.aws.amazon.com/codesuite/codedeploy/deployments/${DEPLOYMENT_ID}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for Frontend deployment to succeed
+        run: |
+          DEPLOYMENT_ID="${{ steps.codedeploy-frontend.outputs.deployment_id }}"
+          echo "Waiting for CodeDeploy deployment ${DEPLOYMENT_ID}..."
+
+          while true; do
+            STATUS=$(aws deploy get-deployment \
+              --deployment-id "${DEPLOYMENT_ID}" \
+              --query 'deploymentInfo.status' \
+              --output text)
+            echo "  Status: ${STATUS}"
+
+            case "${STATUS}" in
+              Succeeded)
+                echo "✅ Deployment succeeded." >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+              Failed|Stopped)
+                ERROR=$(aws deploy get-deployment \
+                  --deployment-id "${DEPLOYMENT_ID}" \
+                  --query 'deploymentInfo.errorInformation.message' \
+                  --output text 2>/dev/null || echo "unknown error")
+                echo "❌ Deployment ${STATUS}: ${ERROR}" >> "$GITHUB_STEP_SUMMARY"
+                exit 1
+                ;;
+              *)
+                sleep 30
+                ;;
+            esac
+          done
+

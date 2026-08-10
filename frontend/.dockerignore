@@ -1,0 +1,26 @@
+# frontend/.dockerignore
+# Keeps build context small and prevents secrets/artefacts from entering the image.
+
+# ── Secrets & local config ────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Build output (rebuilt inside Docker) ─────────────────────────────────────
+.next/
+out/
+
+# ── Dependencies (reinstalled inside Docker via npm ci) ───────────────────────
+node_modules/
+
+# ── Docs & editor files ───────────────────────────────────────────────────────
+*.md
+Dockerfile*
+.dockerignore
+.gitignore
+.eslintrc*
+eslint.config.*
+
+# ── OS artefacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

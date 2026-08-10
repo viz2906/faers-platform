@@ -1,6 +1,22 @@
-version: "3.9"
+# FAERS Analytics Platform — Docker Compose
+# Requires Docker Compose v2 (ships with Docker Desktop 3.3+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Networks
+# ──────────────────────────────────────────────────────────────────────────────
+networks:
+  # Internal network — api, frontend, postgres, redis talk here.
+  # Never exposed to the host.
+  internal:
+    driver: bridge
+
+  # Edge network — only Caddy sits on this side AND on internal.
+  # Keeps the DB/cache completely unreachable from outside.
+  edge:
+    driver: bridge
 
 services:
+
   # ----------------------------------------------------------------
   # PostgreSQL — Primary database
   # ----------------------------------------------------------------
@@ -8,14 +24,14 @@ services:
     image: timescale/timescaledb:latest-pg16
     container_name: faers_postgres
     restart: unless-stopped
+    networks:
+      - internal
+    # No ports exposed to the host — reachable only on the internal network
     environment:
       POSTGRES_DB: faers
       POSTGRES_USER: faers_user
       POSTGRES_PASSWORD: faers_secret_pw
-      # Performance tuning for analytics workloads
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
@@ -47,8 +63,9 @@ services:
     image: redis:7.2-alpine
     container_name: faers_redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    networks:
+      - internal
+    # No ports exposed to the host
     command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -59,18 +76,21 @@ services:
       retries: 5
 
   # ----------------------------------------------------------------
-  # FAERS API — FastAPI backend
+  # FAERS API — FastAPI backend (production image)
   # ----------------------------------------------------------------
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
+    image: faers-api:prod
     container_name: faers_api
     restart: unless-stopped
-    ports:
-      - "8000:8000"
+    networks:
+      - internal
+    # Port NOT exposed to host — Caddy proxies internally on port 8000
     env_file: .env
     environment:
+      # Override env-file values so services resolve by container name
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
     depends_on:
@@ -80,9 +100,74 @@ services:
         condition: service_healthy
     volumes:
       - ./data:/app/data
-      - .:/app
-    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/livez"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  # ----------------------------------------------------------------
+  # Next.js Frontend — production standalone image
+  # ----------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_API_URL is baked into the JS bundle at build time.
+        # It must point to where clients (browsers) reach the API —
+        # i.e. via Caddy, not the internal container address.
+        NEXT_PUBLIC_API_URL: "https://${APP_DOMAIN}/api/v1"
+    image: faers-frontend:prod
+    container_name: faers_frontend
+    restart: unless-stopped
+    networks:
+      - internal
+    # Port NOT exposed to host — Caddy proxies internally on port 3000
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  # ----------------------------------------------------------------
+  # Caddy — TLS-terminating reverse proxy (Let's Encrypt)
+  # ----------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: faers_caddy
+    restart: unless-stopped
+    networks:
+      - internal   # Can reach api:8000 and frontend:3000
+      - edge       # Faces the internet
+    ports:
+      - "80:80"    # Required for ACME HTTP-01 challenge & HTTP→HTTPS redirect
+      - "443:443"  # HTTPS
+      - "443:443/udp"  # HTTP/3 (QUIC)
+    environment:
+      # Set APP_DOMAIN in your .env, e.g.: APP_DOMAIN=faers.example.com
+      APP_DOMAIN: "${APP_DOMAIN}"
+      # Optional: ACME_EMAIL=you@example.com (for cert expiry notices)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro   # Config — read-only
+      - caddy_data:/data                       # ACME certs & keys (persist!)
+      - caddy_config:/config                   # Caddy runtime config cache
+    depends_on:
+      api:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
   redis_data:
+  caddy_data:    # Must persist across restarts — holds TLS certificates
+  caddy_config:

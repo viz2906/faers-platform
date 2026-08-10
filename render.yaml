@@ -1,0 +1,36 @@
+# ==============================================================================
+# Render Blueprint — FAERS Analytics Platform (100% Free Tier Deploy)
+# ==============================================================================
+# Deploy to Render for free: https://render.com
+# 1. Connect your GitHub repository to Render
+# 2. Render will automatically detect this render.yaml file
+# ==============================================================================
+
+services:
+  # ---- Backend API Service (FastAPI) ----------------------------------------
+  - type: web
+    name: faers-api
+    env: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: free
+    region: oregon # or frankfurt / singapore
+    healthCheckPath: /livez
+    autoDeploy: true
+
+    envVars:
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: "8000"
+      - key: API_WORKERS
+        value: "2"
+      - key: ENABLE_CACHE
+        value: "true"
+      - key: EXPLAIN_RESULTS
+        value: "true"
+      - key: QUERY_TIMEOUT_SECONDS
+        value: "5"
+      # Fill these in the Render Dashboard -> Environment:
+      # - DATABASE_URL (from Supabase or Neon free PostgreSQL)
+      # - REDIS_URL    (from Upstash or Render free Redis)
+      # - OPENAI_API_KEY (or OPENAI_BASE_URL for local/free LLM)

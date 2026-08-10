@@ -1,0 +1,39 @@
+# Root-level .dockerignore for Dockerfile.api
+# Prevents secrets, data, tests, and dev artefacts from entering the build context.
+
+# ── Secrets & config ──────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Raw & processed data (can be large; always mounted as volumes) ────────────
+data/
+
+# ── Tests & dev tooling ───────────────────────────────────────────────────────
+tests/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# ── Version control ───────────────────────────────────────────────────────────
+.git/
+.github/
+.pre-commit-config.yaml
+
+# ── Python caches ─────────────────────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# ── Frontend (not needed for API image) ───────────────────────────────────────
+frontend/
+
+# ── Editor & OS files ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
