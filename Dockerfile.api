@@ -37,10 +37,20 @@ WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy only the modules the application needs at runtime
-# .env, data/, tests/, scripts/ are intentionally excluded via .dockerignore
+# Ensure all top-level packages (api/, nlp/, ingestion/, …) are importable.
+# Without this, Python may not include /app on sys.path when uvicorn launches.
+ENV PYTHONPATH=/app
+
+# Copy every top-level package the API imports at runtime.
+# Verified by grepping api/**/*.py and tracing transitive imports:
+#   api/routes/nlp.py        → from nlp.query_engine
+#   api/routes/ingestion.py  → from ingestion.quarterly_pipeline
+#   api/routes/analytics.py  → analytics/ helpers
+#   database/                → SQL schema scripts (loaded at startup)
+# .env, data/, tests/, scripts/ are excluded via .dockerignore
 COPY api/       api/
 COPY nlp/       nlp/
+COPY ingestion/ ingestion/
 COPY analytics/ analytics/
 COPY database/  database/
 
