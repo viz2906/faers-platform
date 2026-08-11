@@ -23,7 +23,7 @@ services:
       - key: API_PORT
         value: "8000"
       - key: API_WORKERS
-        value: "2"
+        value: "1"
       - key: ENABLE_CACHE
         value: "true"
       - key: EXPLAIN_RESULTS
