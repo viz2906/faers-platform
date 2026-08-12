@@ -3,7 +3,9 @@
 #
 # Uses a random_password (stored in Secrets Manager) so no plaintext
 # credentials appear in state or source code.
-# Multi-AZ is controlled by var.rds_multi_az (default false → saves ~$50/mo).
+# Multi-AZ is controlled by var.rds_multi_az (default true → automatic standby
+# in a second AZ; set false in dev to save ~$50/mo).
+# deletion_protection and backup_retention_period = 7 are always on.
 # ==============================================================================
 
 resource "random_password" "db" {

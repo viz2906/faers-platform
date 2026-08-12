@@ -191,7 +191,7 @@ resource "aws_codedeploy_deployment_group" "api" {
   load_balancer_info {
     target_group_pair_info {
       prod_traffic_route {
-        listener_arns = [aws_lb_listener.https.arn]
+        listener_arns = [var.enable_https ? aws_lb_listener.https[0].arn : aws_lb_listener.http.arn]
       }
       test_traffic_route {
         listener_arns = [aws_lb_listener.test.arn]
@@ -278,7 +278,7 @@ resource "aws_codedeploy_deployment_group" "frontend" {
   load_balancer_info {
     target_group_pair_info {
       prod_traffic_route {
-        listener_arns = [aws_lb_listener.https.arn]
+        listener_arns = [var.enable_https ? aws_lb_listener.https[0].arn : aws_lb_listener.http.arn]
       }
       test_traffic_route {
         listener_arns = [aws_lb_listener.test.arn]

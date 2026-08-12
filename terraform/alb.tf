@@ -55,7 +55,7 @@ resource "aws_security_group_rule" "alb_test_listener" {
   protocol          = "tcp"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.alb.id
-  description       = "CodeDeploy test listener — green environment validation"
+  description       = "CodeDeploy test listener - green environment validation"
 }
 
 # ==============================================================================
@@ -182,7 +182,9 @@ resource "aws_lb_target_group" "frontend_green" {
 # Listeners
 # ==============================================================================
 
-# ---- HTTP (80) — always redirect to HTTPS ------------------------------------
+# ---- HTTP (80) — production / HTTP listener ----------------------------------
+# When enable_https = true:  301-redirects all traffic to port 443 (HTTPS).
+# When enable_https = false: forwards directly to the frontend blue target group.
 
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.main.arn
@@ -190,31 +192,40 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+    type             = var.enable_https ? "redirect" : "forward"
+    target_group_arn = var.enable_https ? null : aws_lb_target_group.frontend_blue.arn
+
+    dynamic "redirect" {
+      for_each = var.enable_https ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
     }
   }
 
   tags = {
     Name = "${local.name_prefix}-http-listener"
   }
+
+  lifecycle {
+    ignore_changes = [default_action]
+  }
 }
 
-# ---- HTTPS (443) — PRODUCTION listener ---------------------------------------
-# Initial default action → frontend blue.
+# ---- HTTPS (443) — PRODUCTION listener (gated on enable_https = true) --------
+# Only provisioned when var.enable_https = true.
 # After the first CodeDeploy deployment, CodeDeploy manages the active TG.
-# lifecycle.ignore_changes on default_action prevents Terraform from reverting
-# CodeDeploy's traffic shift back to blue on the next `terraform apply`.
 
 resource "aws_lb_listener" "https" {
+  count = var.enable_https ? 1 : 0
+
   load_balancer_arn = aws_lb.main.arn
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate_validation.main.certificate_arn
+  certificate_arn   = aws_acm_certificate_validation.main[0].certificate_arn
 
   default_action {
     type             = "forward"
@@ -232,10 +243,10 @@ resource "aws_lb_listener" "https" {
 }
 
 # ---- Listener Rule — API paths → API blue TG (priority 10) ------------------
-# CodeDeploy swaps the target group in this rule during API deployments.
+# Attached to HTTPS listener when enable_https = true, or HTTP listener when false.
 
 resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.https.arn
+  listener_arn = var.enable_https ? aws_lb_listener.https[0].arn : aws_lb_listener.http.arn
   priority     = 10
 
   action {

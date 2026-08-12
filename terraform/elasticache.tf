@@ -1,12 +1,15 @@
 # ==============================================================================
-# ElastiCache — Redis 7.2 (Replication Group, single node)
+# ElastiCache — Redis 7.2 (Replication Group, 1 primary + 1 replica)
 #
 # Uses transit_encryption_enabled + an auth_token (stored in Secrets Manager)
 # for in-transit security. The app must connect with ssl=True on port 6379.
 #
 # A replication_group is used (instead of aws_elasticache_cluster) because:
 # 1. It is the only resource that supports Redis AUTH tokens.
-# 2. It can be upgraded to multi-node/multi-AZ without resource recreation.
+# 2. It natively supports automatic_failover_enabled and multi_az_enabled for HA.
+#
+# HA mode: 1 primary + 1 replica across two AZs.  If the primary node fails,
+# ElastiCache automatically promotes the replica (typically < 60 s).
 # ==============================================================================
 
 resource "random_password" "redis_auth" {
@@ -80,11 +83,13 @@ resource "aws_elasticache_replication_group" "main" {
   engine_version = "7.2"
   node_type      = var.elasticache_node_type
 
-  # Single node — no failover. Set num_cache_clusters >= 2 and
-  # automatic_failover_enabled = true for HA.
-  num_cache_clusters         = 1
-  automatic_failover_enabled = false
-  multi_az_enabled           = false
+  # HA: 1 primary + 1 replica across two AZs.
+  # automatic_failover_enabled requires num_cache_clusters >= 2.
+  # multi_az_enabled places the replica in a different AZ from the primary
+  # so a single-AZ failure triggers automatic promotion of the replica.
+  num_cache_clusters         = 2
+  automatic_failover_enabled = true
+  multi_az_enabled           = true
 
   port                   = 6379
   subnet_group_name      = aws_elasticache_subnet_group.main.name
@@ -98,7 +103,7 @@ resource "aws_elasticache_replication_group" "main" {
 
   # Maintenance and snapshots
   maintenance_window       = "sun:05:00-sun:06:00"
-  snapshot_retention_limit = 1    # Keep 1 daily snapshot for free tier
+  snapshot_retention_limit = 7    # Match RDS 7-day backup retention
   snapshot_window          = "02:00-03:00"
 
   apply_immediately = true   # Apply parameter changes without waiting for maintenance window

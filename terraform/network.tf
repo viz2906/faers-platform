@@ -3,15 +3,15 @@
 #
 # Resources defined here:
 #   VPC
-#   ├── 2 × public  subnets  (ALB, NAT gateway)
-#   ├── 2 × private subnets  (ECS tasks — egress via NAT)
+#   ├── 2 × public  subnets  (ALB, NAT gateways)
+#   ├── 2 × private subnets  (ECS tasks — egress via per-AZ NAT)
 #   └── 2 × private subnets  (RDS / ElastiCache — no internet egress)
 #   Internet Gateway
-#   NAT Gateway (single, in public-subnet-0 — cost-optimised)
+#   NAT Gateways (one per AZ, each with its own EIP — AZ-fault-tolerant)
 #   Route tables:
-#     public_rt   → IGW  (associated with public subnets)
-#     ecs_rt      → NAT  (associated with ECS private subnets)
-#     db_rt       → local only (associated with DB private subnets)
+#     public_rt        → IGW  (associated with public subnets)
+#     ecs_rt[0/1]      → NAT[0/1]  (each AZ's ECS private subnet has its own RT)
+#     db_rt            → local only (associated with DB private subnets)
 #   Security groups:
 #     alb_sg  — allows HTTPS (443) + HTTP (80) from 0.0.0.0/0
 #     ecs_sg  — allows traffic only from alb_sg
@@ -105,29 +105,40 @@ resource "aws_internet_gateway" "main" {
 }
 
 # ==============================================================================
-# NAT Gateway  (single — cost-optimised; accepts slightly longer failover time)
+# NAT Gateways  (one per AZ — AZ-fault-tolerant)
 #
-# Placed in public-subnet[0]. If you need HA, add a second EIP + NAT in [1]
-# and a separate private route table pointing to it; adjust var.nat_az_index.
+# WHY PER-AZ:
+#   A single NAT gateway in AZ-a means that if AZ-a becomes unavailable, all
+#   ECS tasks in AZ-b lose internet egress (ECR image pulls, LLM API calls,
+#   pip/npm installs). Two NAT gateways — one in each public subnet — ensure
+#   each AZ's private subnets have an independent egress path.
+#
+# COST:
+#   Each NAT gateway costs ~$32/mo + data-transfer fees. Two gateways therefore
+#   add ~$64/mo vs. ~$32/mo for a single one. For dev/staging environments you
+#   can cut this cost by setting count = 1 in both resources below and pointing
+#   both ecs_private route tables at aws_nat_gateway.main[0].
 # ==============================================================================
 
 resource "aws_eip" "nat" {
+  count  = 2
   domain = "vpc"
 
   tags = {
-    Name = "${local.name_prefix}-nat-eip"
+    Name = "${local.name_prefix}-nat-eip-${local.azs[count.index]}"
   }
 
-  # EIP must exist after the IGW is attached; Terraform needs this hint
+  # EIPs must be allocated after the IGW is attached
   depends_on = [aws_internet_gateway.main]
 }
 
 resource "aws_nat_gateway" "main" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id   # Placed in the first public subnet
+  count         = 2
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id   # One NAT per public subnet (AZ)
 
   tags = {
-    Name = "${local.name_prefix}-nat"
+    Name = "${local.name_prefix}-nat-${local.azs[count.index]}"
   }
 
   depends_on = [aws_internet_gateway.main]
@@ -158,25 +169,29 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# ---- ECS private route table — egress via single NAT gateway ----------------
+# ---- ECS private route tables — one per AZ, each via its own NAT gateway -----
+# Each AZ's private subnet gets a dedicated route table pointing to the NAT
+# gateway in the same AZ. This means an AZ failure only affects egress for
+# tasks in that AZ; the other AZ continues uninterrupted.
 
 resource "aws_route_table" "ecs_private" {
+  count  = 2
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main.id
+    nat_gateway_id = aws_nat_gateway.main[count.index].id
   }
 
   tags = {
-    Name = "${local.name_prefix}-ecs-private-rt"
+    Name = "${local.name_prefix}-ecs-private-rt-${local.azs[count.index]}"
   }
 }
 
 resource "aws_route_table_association" "ecs_private" {
   count          = 2
   subnet_id      = aws_subnet.ecs_private[count.index].id
-  route_table_id = aws_route_table.ecs_private.id
+  route_table_id = aws_route_table.ecs_private[count.index].id
 }
 
 # ---- DB private route table — local only, intentionally no internet egress --

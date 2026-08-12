@@ -81,4 +81,6 @@ terraform/*.tfplan
 terraform/destroy-plan
 terraform/terraform.tfvars     # May contain real secrets — use .example instead
 terraform/crash.log
+terraaa/
+*.csv
 

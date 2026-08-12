@@ -94,14 +94,37 @@ variable "db_subnet_cidrs" {
 # DNS / TLS
 # ==============================================================================
 
+variable "enable_https" {
+  description = <<-EOT
+    When true:  provision an ACM certificate, an HTTPS (443) listener, and an
+                HTTP (80) → HTTPS redirect.  Requires domain_name and route53_zone_id.
+    When false: create only an HTTP (80) listener forwarding to the target groups.
+                No domain or certificate is needed; use the ALB DNS name directly.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "domain_name" {
-  description = "Public domain name for the platform (e.g. faers.example.com). Used for the ACM certificate and HTTPS listener."
+  description = "Public domain name for the platform (e.g. faers.example.com). Required when enable_https = true."
   type        = string
+  default     = ""   # Optional — only used when enable_https = true
+
+  validation {
+    condition     = !var.enable_https || (var.domain_name != null && var.domain_name != "")
+    error_message = "domain_name must be set when enable_https = true."
+  }
 }
 
 variable "route53_zone_id" {
-  description = "Route 53 hosted zone ID for var.domain_name. Used to write ACM DNS validation CNAME records."
+  description = "Route 53 hosted zone ID for var.domain_name. Required when enable_https = true."
   type        = string
+  default     = ""   # Optional — only used when enable_https = true
+
+  validation {
+    condition     = !var.enable_https || (var.route53_zone_id != null && var.route53_zone_id != "")
+    error_message = "route53_zone_id must be set when enable_https = true."
+  }
 }
 
 # ==============================================================================
@@ -169,9 +192,9 @@ variable "frontend_image_tag" {
 # ==============================================================================
 
 variable "rds_instance_class" {
-  description = "RDS instance class for PostgreSQL."
+  description = "RDS instance class for PostgreSQL. db.t3.small is the production default (db.t3.micro is too small for concurrent analytics queries)."
   type        = string
-  default     = "db.t3.micro"
+  default     = "db.t3.small"
 }
 
 variable "rds_db_name" {
@@ -187,9 +210,9 @@ variable "rds_username" {
 }
 
 variable "rds_multi_az" {
-  description = "Enable RDS Multi-AZ for automatic failover. Doubles the instance cost; recommended for production."
+  description = "Enable RDS Multi-AZ for automatic failover. Doubles the instance cost; recommended (and defaulted) for production."
   type        = bool
-  default     = false
+  default     = true
 }
 
 # ==============================================================================
