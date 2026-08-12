@@ -20,7 +20,7 @@
 
 locals {
   # Build fully-qualified AZ names from suffix list, e.g. "us-east-1a"
-  azs = [for suffix in var.availability_zones : "${var.aws_region}${suffix}"]
+  azs         = [for suffix in var.availability_zones : "${var.aws_region}${suffix}"]
   name_prefix = "${var.project}-${var.environment}"
 }
 
@@ -31,7 +31,7 @@ locals {
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
-  enable_dns_hostnames = true   # Required for RDS endpoint resolution
+  enable_dns_hostnames = true # Required for RDS endpoint resolution
 
   tags = {
     Name = "${local.name_prefix}-vpc"
@@ -48,7 +48,7 @@ resource "aws_subnet" "public" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_cidrs[count.index]
   availability_zone       = local.azs[count.index]
-  map_public_ip_on_launch = true   # Instances launched here get a public IP
+  map_public_ip_on_launch = true # Instances launched here get a public IP
 
   tags = {
     Name = "${local.name_prefix}-public-${local.azs[count.index]}"
@@ -135,7 +135,7 @@ resource "aws_eip" "nat" {
 resource "aws_nat_gateway" "main" {
   count         = 2
   allocation_id = aws_eip.nat[count.index].id
-  subnet_id     = aws_subnet.public[count.index].id   # One NAT per public subnet (AZ)
+  subnet_id     = aws_subnet.public[count.index].id # One NAT per public subnet (AZ)
 
   tags = {
     Name = "${local.name_prefix}-nat-${local.azs[count.index]}"
@@ -326,7 +326,7 @@ resource "aws_security_group" "db" {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["127.0.0.1/32"]   # Effectively blocks all egress
+    cidr_blocks = ["127.0.0.1/32"] # Effectively blocks all egress
   }
 
   tags = {

@@ -42,7 +42,7 @@ resource "aws_iam_role_policy_attachment" "aws_backup_restore" {
 # Primary region vault
 resource "aws_backup_vault" "primary" {
   name        = "${local.name_prefix}-backup-vault-primary"
-  kms_key_arn = null   # Uses default AWS-managed KMS key for AWS Backup
+  kms_key_arn = null # Uses default AWS-managed KMS key for AWS Backup
 
   tags = {
     Name = "${local.name_prefix}-backup-vault-primary"
@@ -69,10 +69,10 @@ resource "aws_backup_plan" "rds_dr" {
   rule {
     rule_name         = "weekly-cross-region-copy"
     target_vault_name = aws_backup_vault.primary.name
-    schedule          = "cron(0 1 ? * SUN *)"   # Every Sunday at 01:00 UTC
+    schedule          = "cron(0 1 ? * SUN *)" # Every Sunday at 01:00 UTC
 
     lifecycle {
-      delete_after = 30   # Retain weekly snapshots for 30 days
+      delete_after = 30 # Retain weekly snapshots for 30 days
     }
 
     # Cross-region copy action to DR region vault
@@ -80,7 +80,7 @@ resource "aws_backup_plan" "rds_dr" {
       destination_vault_arn = aws_backup_vault.dr.arn
 
       lifecycle {
-        delete_after = 30   # Retain copy in DR region for 30 days
+        delete_after = 30 # Retain copy in DR region for 30 days
       }
     }
   }

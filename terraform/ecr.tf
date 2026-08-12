@@ -8,14 +8,14 @@
 
 resource "aws_ecr_repository" "api" {
   name                 = "${local.name_prefix}-api"
-  image_tag_mutability = "MUTABLE"   # Allow :latest to be overwritten by CI
+  image_tag_mutability = "MUTABLE" # Allow :latest to be overwritten by CI
 
   image_scanning_configuration {
-    scan_on_push = true   # Inspector scans every new image for CVEs
+    scan_on_push = true # Inspector scans every new image for CVEs
   }
 
   encryption_configuration {
-    encryption_type = "AES256"   # Default AWS-managed encryption at rest
+    encryption_type = "AES256" # Default AWS-managed encryption at rest
   }
 
   tags = {
@@ -55,10 +55,10 @@ resource "aws_ecr_lifecycle_policy" "api" {
         rulePriority = 1
         description  = "Keep the last ${var.ecr_max_image_count} tagged images"
         selection = {
-          tagStatus   = "tagged"
+          tagStatus     = "tagged"
           tagPrefixList = ["v", "sha-", "latest"]
-          countType   = "imageCountMoreThan"
-          countNumber = var.ecr_max_image_count
+          countType     = "imageCountMoreThan"
+          countNumber   = var.ecr_max_image_count
         }
         action = { type = "expire" }
       },

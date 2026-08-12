@@ -56,7 +56,7 @@ resource "aws_route53_record" "cert_validation" {
   records = [each.value.record]
   ttl     = 60
 
-  allow_overwrite = true   # Safe to overwrite — ACM regenerates the same value
+  allow_overwrite = true # Safe to overwrite — ACM regenerates the same value
 }
 
 # ---- Wait for Certificate Issuance -------------------------------------------

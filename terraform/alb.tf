@@ -287,7 +287,7 @@ resource "aws_lb_listener_rule" "api" {
 resource "aws_lb_listener" "test" {
   load_balancer_arn = aws_lb.main.arn
   port              = 8080
-  protocol          = "HTTP"   # No TLS — test listener is internal validation only
+  protocol          = "HTTP" # No TLS — test listener is internal validation only
 
   default_action {
     type             = "forward"

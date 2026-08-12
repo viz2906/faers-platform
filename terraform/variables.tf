@@ -108,7 +108,7 @@ variable "enable_https" {
 variable "domain_name" {
   description = "Public domain name for the platform (e.g. faers.example.com). Required when enable_https = true."
   type        = string
-  default     = ""   # Optional — only used when enable_https = true
+  default     = "" # Optional — only used when enable_https = true
 
   validation {
     condition     = !var.enable_https || (var.domain_name != null && var.domain_name != "")
@@ -119,7 +119,7 @@ variable "domain_name" {
 variable "route53_zone_id" {
   description = "Route 53 hosted zone ID for var.domain_name. Required when enable_https = true."
   type        = string
-  default     = ""   # Optional — only used when enable_https = true
+  default     = "" # Optional — only used when enable_https = true
 
   validation {
     condition     = !var.enable_https || (var.route53_zone_id != null && var.route53_zone_id != "")

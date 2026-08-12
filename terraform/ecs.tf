@@ -19,7 +19,7 @@ resource "aws_ecs_cluster" "main" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"   # Enables CloudWatch Container Insights metrics
+    value = "enabled" # Enables CloudWatch Container Insights metrics
   }
 
   tags = {
@@ -34,7 +34,7 @@ resource "aws_ecs_cluster_capacity_providers" "main" {
   default_capacity_provider_strategy {
     capacity_provider = "FARGATE"
     weight            = 1
-    base              = 1   # Guarantee at least 1 task on FARGATE (not SPOT)
+    base              = 1 # Guarantee at least 1 task on FARGATE (not SPOT)
   }
 }
 
@@ -145,7 +145,7 @@ resource "aws_iam_role" "ecs_task" {
 resource "aws_ecs_task_definition" "api" {
   family                   = "${local.name_prefix}-api"
   requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"   # Required for Fargate
+  network_mode             = "awsvpc" # Required for Fargate
   cpu                      = var.ecs_api_cpu
   memory                   = var.ecs_api_memory
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
@@ -164,18 +164,18 @@ resource "aws_ecs_task_definition" "api" {
 
       # Non-sensitive configuration as plain environment variables
       environment = [
-        { name = "API_HOST",              value = "0.0.0.0" },
-        { name = "API_PORT",              value = "8000" },
-        { name = "API_WORKERS",           value = "4" },
-        { name = "POSTGRES_PORT",         value = "5432" },
-        { name = "REDIS_PORT",            value = "6379" },
-        { name = "REDIS_DB",              value = "0" },
-        { name = "REDIS_TTL_SECONDS",     value = "3600" },
-        { name = "ENABLE_CACHE",          value = "true" },
-        { name = "EXPLAIN_RESULTS",       value = "true" },
+        { name = "API_HOST", value = "0.0.0.0" },
+        { name = "API_PORT", value = "8000" },
+        { name = "API_WORKERS", value = "4" },
+        { name = "POSTGRES_PORT", value = "5432" },
+        { name = "REDIS_PORT", value = "6379" },
+        { name = "REDIS_DB", value = "0" },
+        { name = "REDIS_TTL_SECONDS", value = "3600" },
+        { name = "ENABLE_CACHE", value = "true" },
+        { name = "EXPLAIN_RESULTS", value = "true" },
         { name = "QUERY_TIMEOUT_SECONDS", value = "5" },
         # ElastiCache uses TLS — the redis-py client must be configured with ssl=True
-        { name = "REDIS_SSL",             value = "true" },
+        { name = "REDIS_SSL", value = "true" },
       ]
 
       # Sensitive values — pulled from Secrets Manager by the ECS agent at launch.
@@ -202,7 +202,7 @@ resource "aws_ecs_task_definition" "api" {
           valueFrom = "${aws_secretsmanager_secret.redis.arn}:host::"
         },
         {
-          name      = "REDIS_PASSWORD"   # Used as the AUTH token by redis-py
+          name      = "REDIS_PASSWORD" # Used as the AUTH token by redis-py
           valueFrom = "${aws_secretsmanager_secret.redis.arn}:auth_token::"
         },
       ]
@@ -267,7 +267,7 @@ resource "aws_ecs_task_definition" "frontend" {
 
       environment = [
         { name = "NODE_ENV", value = "production" },
-        { name = "PORT",     value = "3000" },
+        { name = "PORT", value = "3000" },
         { name = "HOSTNAME", value = "0.0.0.0" },
         # NEXT_PUBLIC_API_URL must point to the ALB public domain — browsers call this.
         # The value is baked into the JS bundle at Docker build time (--build-arg).

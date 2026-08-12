@@ -10,7 +10,7 @@
 
 resource "random_password" "db" {
   length           = 32
-  special          = false   # Avoid shell-escaping issues in connection strings
+  special          = false # Avoid shell-escaping issues in connection strings
   override_special = ""
 }
 
@@ -107,7 +107,7 @@ resource "aws_db_instance" "main" {
   parameter_group_name   = aws_db_parameter_group.main.name
   vpc_security_group_ids = [aws_security_group.db.id]
 
-  multi_az = var.rds_multi_az   # Set to true in production for HA failover
+  multi_az = var.rds_multi_az # Set to true in production for HA failover
 
   # Automated backups — 7-day retention, 03:00–04:00 UTC daily
   backup_retention_period = 7

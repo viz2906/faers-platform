@@ -151,7 +151,7 @@ output "redis_secret_arn" {
 
 output "ecr_push_commands" {
   description = "Commands to authenticate and push images to ECR. Replace <TAG> with your image tag."
-  value = <<-EOT
+  value       = <<-EOT
     # Authenticate Docker to ECR:
     aws ecr get-login-password --region ${var.aws_region} | \
       docker login --username AWS --password-stdin ${aws_ecr_repository.api.repository_url}

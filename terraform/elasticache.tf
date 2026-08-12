@@ -16,7 +16,7 @@ resource "random_password" "redis_auth" {
   # Redis auth tokens: 16–128 printable ASCII chars, no spaces or @
   length           = 32
   special          = true
-  override_special = "!&#$^<>-"   # Subset that Redis accepts in auth tokens
+  override_special = "!&#$^<>-" # Subset that Redis accepts in auth tokens
 }
 
 # ---- Secrets Manager — Redis Credentials -------------------------------------
@@ -91,10 +91,10 @@ resource "aws_elasticache_replication_group" "main" {
   automatic_failover_enabled = true
   multi_az_enabled           = true
 
-  port                   = 6379
-  subnet_group_name      = aws_elasticache_subnet_group.main.name
-  security_group_ids     = [aws_security_group.db.id]
-  parameter_group_name   = aws_elasticache_parameter_group.main.name
+  port                 = 6379
+  subnet_group_name    = aws_elasticache_subnet_group.main.name
+  security_group_ids   = [aws_security_group.db.id]
+  parameter_group_name = aws_elasticache_parameter_group.main.name
 
   # Security: in-transit TLS + AUTH token (required pair)
   transit_encryption_enabled = true
@@ -103,10 +103,10 @@ resource "aws_elasticache_replication_group" "main" {
 
   # Maintenance and snapshots
   maintenance_window       = "sun:05:00-sun:06:00"
-  snapshot_retention_limit = 7    # Match RDS 7-day backup retention
+  snapshot_retention_limit = 7 # Match RDS 7-day backup retention
   snapshot_window          = "02:00-03:00"
 
-  apply_immediately = true   # Apply parameter changes without waiting for maintenance window
+  apply_immediately = true # Apply parameter changes without waiting for maintenance window
 
   tags = {
     Name      = "${local.name_prefix}-redis"

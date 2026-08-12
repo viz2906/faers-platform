@@ -33,7 +33,7 @@ resource "aws_iam_openid_connect_provider" "github" {
   url = "https://token.actions.githubusercontent.com"
 
   client_id_list = [
-    "sts.amazonaws.com",   # The audience GitHub sets in its OIDC tokens for AWS
+    "sts.amazonaws.com", # The audience GitHub sets in its OIDC tokens for AWS
   ]
 
   # GitHub's OIDC TLS certificate thumbprint.
@@ -56,7 +56,7 @@ resource "aws_iam_openid_connect_provider" "github" {
 # can assume the role. Wildcard (*) would allow any branch — avoid that in prod.
 
 resource "aws_iam_role" "github_actions_deploy" {
-  name = "${local.name_prefix}-github-actions-deploy"
+  name        = "${local.name_prefix}-github-actions-deploy"
   description = "Assumed by GitHub Actions OIDC to deploy FAERS to ECS. No long-lived credentials."
 
   assume_role_policy = jsonencode({
@@ -107,10 +107,10 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
 
       # ── ECR — authenticate, push images ─────────────────────────────────
       {
-        Sid    = "ECRGetAuthToken"
-        Effect = "Allow"
-        Action = ["ecr:GetAuthorizationToken"]
-        Resource = ["*"]   # GetAuthorizationToken is a global action (no resource ARN)
+        Sid      = "ECRGetAuthToken"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
+        Resource = ["*"] # GetAuthorizationToken is a global action (no resource ARN)
       },
       {
         Sid    = "ECRPushImages"
@@ -141,7 +141,7 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
           "ecs:DescribeTasks",
           "ecs:ListTasks",
         ]
-        Resource = ["*"]   # Describe calls don't support resource-level restrictions
+        Resource = ["*"] # Describe calls don't support resource-level restrictions
       },
       {
         Sid    = "ECSRegisterAndDeploy"

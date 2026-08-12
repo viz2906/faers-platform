@@ -60,8 +60,8 @@ resource "aws_appautoscaling_policy" "api_cpu" {
     }
 
     target_value       = var.autoscaling_cpu_target
-    scale_in_cooldown  = 300   # Wait 5 minutes before scaling down to prevent flapping
-    scale_out_cooldown = 60    # Scale out rapidly (1 minute) during traffic spikes
+    scale_in_cooldown  = 300 # Wait 5 minutes before scaling down to prevent flapping
+    scale_out_cooldown = 60  # Scale out rapidly (1 minute) during traffic spikes
   }
 }
 

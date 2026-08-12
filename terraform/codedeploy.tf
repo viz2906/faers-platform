@@ -66,8 +66,8 @@ resource "aws_codedeploy_deployment_config" "linear" {
     time_based_linear {
       # Shift 10% of traffic to green every 1 minute.
       # 100% transferred after 10 × 1 = 10 minutes total.
-      interval   = 1    # minutes between each traffic increment
-      percentage = 10   # percentage of traffic to shift per interval
+      interval   = 1  # minutes between each traffic increment
+      percentage = 10 # percentage of traffic to shift per interval
     }
   }
 }
@@ -88,13 +88,13 @@ resource "aws_cloudwatch_metric_alarm" "api_5xx" {
   alarm_name          = "${local.name_prefix}-api-5xx"
   alarm_description   = "API 5xx errors exceeded threshold — triggers CodeDeploy rollback."
   comparison_operator = "GreaterThanThreshold"
-  evaluation_periods  = 2        # Alarm fires after 2 consecutive breaching periods
-  threshold           = 10       # More than 10 5xx responses in one period = rollback
+  evaluation_periods  = 2  # Alarm fires after 2 consecutive breaching periods
+  threshold           = 10 # More than 10 5xx responses in one period = rollback
   treat_missing_data  = "notBreaching"
 
   metric_name = "HTTPCode_Target_5XX_Count"
   namespace   = "AWS/ApplicationELB"
-  period      = 60   # 1-minute evaluation window — matches linear shift interval
+  period      = 60 # 1-minute evaluation window — matches linear shift interval
   statistic   = "Sum"
 
   dimensions = {
@@ -217,28 +217,28 @@ resource "aws_codedeploy_deployment_group" "api" {
     terminate_blue_instances_on_deployment_success {
       # After full traffic shift, drain and terminate blue tasks.
       action                           = "TERMINATE"
-      termination_wait_time_in_minutes = 5   # Allow in-flight requests to drain
+      termination_wait_time_in_minutes = 5 # Allow in-flight requests to drain
     }
   }
 
   deployment_style {
-    deployment_option = "WITH_TRAFFIC_CONTROL"   # Use ALB traffic shifting
+    deployment_option = "WITH_TRAFFIC_CONTROL" # Use ALB traffic shifting
     deployment_type   = "BLUE_GREEN"
   }
 
   # ---- Auto-rollback on alarm -----------------------------------------------
   auto_rollback_configuration {
     enabled = true
-    events  = [
-      "DEPLOYMENT_FAILURE",        # Hard failure (task crash, health check fail)
-      "DEPLOYMENT_STOP_ON_ALARM",  # CloudWatch alarm fired during traffic shift
+    events = [
+      "DEPLOYMENT_FAILURE",       # Hard failure (task crash, health check fail)
+      "DEPLOYMENT_STOP_ON_ALARM", # CloudWatch alarm fired during traffic shift
     ]
   }
 
   # ---- CloudWatch alarms that trigger rollback ------------------------------
   alarm_configuration {
     enabled = true
-    alarms  = [
+    alarms = [
       aws_cloudwatch_metric_alarm.api_5xx.alarm_name,
       aws_cloudwatch_metric_alarm.alb_5xx.alarm_name,
     ]
@@ -311,7 +311,7 @@ resource "aws_codedeploy_deployment_group" "frontend" {
 
   auto_rollback_configuration {
     enabled = true
-    events  = [
+    events = [
       "DEPLOYMENT_FAILURE",
       "DEPLOYMENT_STOP_ON_ALARM",
     ]
@@ -319,7 +319,7 @@ resource "aws_codedeploy_deployment_group" "frontend" {
 
   alarm_configuration {
     enabled = true
-    alarms  = [
+    alarms = [
       aws_cloudwatch_metric_alarm.frontend_5xx.alarm_name,
       aws_cloudwatch_metric_alarm.alb_5xx.alarm_name,
     ]
