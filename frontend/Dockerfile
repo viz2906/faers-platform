@@ -23,7 +23,7 @@ COPY . .
 
 # NEXT_PUBLIC_* vars are baked into the static JS bundle at build time.
 # Pass the API URL as a build argument; default is empty so it can also
-# be injected by CI (docker build --build-arg NEXT_PUBLIC_API_URL=https://…)
+# be injected by CI or Render's "Docker Build Args" setting.
 ARG NEXT_PUBLIC_API_URL=""
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
@@ -56,11 +56,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone    ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static        ./.next/static
 
 USER nextjs
+# EXPOSE documents the default port; Render overrides it via $PORT at runtime.
 EXPOSE 3000
 
-# Next.js standalone exposes /api/health automatically (returns 200 when ready).
-# wget is preferred over curl on Alpine because it ships in busybox.
+# Next.js standalone server reads PORT from the environment.
+# wget probes ${PORT:-3000} so the healthcheck survives a Render port override.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD wget -qO- http://localhost:3000/api/health || exit 1
+    CMD wget -qO- http://localhost:${PORT:-3000}/api/health || exit 1
 
 CMD ["node", "server.js"]

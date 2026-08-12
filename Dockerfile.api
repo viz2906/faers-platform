@@ -63,7 +63,7 @@ EXPOSE 8000
 # /livez returns {"ok": true} with zero DB I/O — safe to poll every 30s.
 # /health (with DB probe) is left for observability dashboards, not HEALTHCHECK.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/livez || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/livez || exit 1
 
 # All secrets (DB credentials, API keys) must be supplied as environment
 # variables at container runtime — none are baked into this image.

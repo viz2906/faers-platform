@@ -2,22 +2,39 @@
 # Render Blueprint — FAERS Analytics Platform (100% Free Tier Deploy)
 # ==============================================================================
 # Deploy to Render for free: https://render.com
-# 1. Connect your GitHub repository to Render
-# 2. Render will automatically detect this render.yaml file
+# 1. Push this repo to GitHub
+# 2. Go to render.com → New → Blueprint → connect this repo
+# 3. Render auto-reads this file and creates both services
+#
+# Two services:
+#   faers-api      — FastAPI backend  (Docker, port 8000)
+#   faers-frontend — Next.js frontend (Docker, port 3000)
+#
+# IMPORTANT — after first deploy, set these secrets in the Render Dashboard
+# under each service's Environment tab (they are intentionally NOT committed):
+#   faers-api:
+#     DATABASE_URL   — Neon/Supabase free Postgres connection string
+#     REDIS_URL      — Upstash free Redis URL  (optional, for caching)
+#     OPENAI_API_KEY — your OpenAI key (or leave blank to disable NLP)
+#   faers-frontend:
+#     NEXT_PUBLIC_API_URL — set to the faers-api Render URL after first deploy
+#                           e.g. https://faers-api.onrender.com
 # ==============================================================================
 
 services:
-  # ---- Backend API Service (FastAPI) ----------------------------------------
+  # ── Backend API (FastAPI / Uvicorn) ─────────────────────────────────────────
+  # Render injects $PORT automatically; our CMD reads ${PORT:-8000}.
+  # healthCheckPath is polled by Render to confirm the service is alive.
   - type: web
     name: faers-api
     env: docker
     dockerfilePath: ./Dockerfile.api
+    # Build context is the repo root so COPY ingestion/, nlp/, etc. all resolve.
+    dockerContext: .
     plan: free
-    region: oregon # or frankfurt / singapore
+    region: oregon
     healthCheckPath: /livez
     autoDeploy: true
-    # Tell Render which port the container listens on.
-    # Render also injects $PORT=10000 by default, but this makes it explicit.
     port: 8000
 
     envVars:
@@ -31,7 +48,42 @@ services:
         value: "true"
       - key: QUERY_TIMEOUT_SECONDS
         value: "5"
-      # Fill these in the Render Dashboard -> Environment:
-      # - DATABASE_URL (from Supabase or Neon free PostgreSQL)
-      # - REDIS_URL    (from Upstash or Render free Redis)
-      # - OPENAI_API_KEY (or OPENAI_BASE_URL for local/free LLM)
+      # ── Secrets: add these in the Render Dashboard → Environment ──────────
+      # DATABASE_URL   postgres://user:pass@host/db   (Neon / Supabase free)
+      # REDIS_URL      redis://...                    (Upstash free, optional)
+      # OPENAI_API_KEY sk-...                         (optional — enables NLP)
+
+  # ── Frontend (Next.js standalone) ───────────────────────────────────────────
+  # The Next.js build bakes NEXT_PUBLIC_* vars into the static JS bundle at
+  # build time, so NEXT_PUBLIC_API_URL must be a build arg, not a runtime var.
+  #
+  # After the faers-api service is deployed for the first time, copy its URL
+  # (e.g. https://faers-api.onrender.com) into:
+  #   Render Dashboard → faers-frontend → Settings → Build & Deploy
+  #     → Docker Build Args → NEXT_PUBLIC_API_URL=https://faers-api.onrender.com
+  # Then trigger a manual redeploy so the bundle picks up the real API URL.
+  - type: web
+    name: faers-frontend
+    env: docker
+    # Dockerfile is inside the frontend/ subdirectory; context is also frontend/
+    # so COPY package*.json ./ and COPY . . resolve correctly relative to it.
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true
+    # Next.js standalone server listens on PORT env var (default 3000).
+    port: 3000
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # NEXT_PUBLIC_API_URL is a *build-time* var: it gets baked into the
+      # compiled JS bundle by `next build`. It cannot be changed at runtime
+      # without rebuilding. Set it to your faers-api Render URL.
+      # Leave blank on first deploy; update + redeploy once API URL is known.
+      - key: NEXT_PUBLIC_API_URL
+        value: ""  # e.g. https://faers-api.onrender.com
