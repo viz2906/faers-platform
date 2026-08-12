@@ -16,12 +16,13 @@ services:
     region: oregon # or frankfurt / singapore
     healthCheckPath: /livez
     autoDeploy: true
+    # Tell Render which port the container listens on.
+    # Render also injects $PORT=10000 by default, but this makes it explicit.
+    port: 8000
 
     envVars:
       - key: API_HOST
         value: 0.0.0.0
-      - key: API_PORT
-        value: "8000"
       - key: API_WORKERS
         value: "1"
       - key: ENABLE_CACHE
