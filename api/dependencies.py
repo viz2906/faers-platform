@@ -71,12 +71,19 @@ def init_redis():
 
 def init_llm():
     global _llm_client
-    _llm_client = OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY"),
-        base_url=os.getenv("OPENAI_BASE_URL"),
-        timeout=20.0,
-        max_retries=2,
-    )
+    api_key = os.getenv("OPENAI_API_KEY")
+    if api_key:
+        try:
+            _llm_client = OpenAI(
+                api_key=api_key,
+                base_url=os.getenv("OPENAI_BASE_URL"),
+                timeout=20.0,
+                max_retries=2,
+            )
+        except Exception:
+            _llm_client = None
+    else:
+        _llm_client = None
 
 def get_db():
     """FastAPI dependency: get a DB connection from pool."""

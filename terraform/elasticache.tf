@@ -80,7 +80,7 @@ resource "aws_elasticache_replication_group" "main" {
   description          = "FAERS Redis query-result cache."
 
   engine         = "redis"
-  engine_version = "7.2"
+  engine_version = "7.0"
   node_type      = var.elasticache_node_type
 
   # HA: 1 primary + 1 replica across two AZs.

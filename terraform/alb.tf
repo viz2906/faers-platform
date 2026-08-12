@@ -131,7 +131,7 @@ resource "aws_lb_target_group" "frontend_blue" {
 
   health_check {
     enabled             = true
-    path                = "/api/health"
+    path                = "/"
     protocol            = "HTTP"
     port                = "traffic-port"
     healthy_threshold   = 2
@@ -159,7 +159,7 @@ resource "aws_lb_target_group" "frontend_green" {
 
   health_check {
     enabled             = true
-    path                = "/api/health"
+    path                = "/"
     protocol            = "HTTP"
     port                = "traffic-port"
     healthy_threshold   = 2
@@ -258,11 +258,9 @@ resource "aws_lb_listener_rule" "api" {
     path_pattern {
       values = [
         "/api/*",
-        "/docs",
-        "/docs/*",
-        "/redoc",
+        "/docs*",
+        "/redoc*",
         "/openapi.json",
-        "/health",
         "/livez",
       ]
     }
@@ -318,11 +316,9 @@ resource "aws_lb_listener_rule" "api_test" {
     path_pattern {
       values = [
         "/api/*",
-        "/docs",
-        "/docs/*",
-        "/redoc",
+        "/docs*",
+        "/redoc*",
         "/openapi.json",
-        "/health",
         "/livez",
       ]
     }

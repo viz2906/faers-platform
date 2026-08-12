@@ -78,6 +78,7 @@ terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/terraform.tfstate.*.backup
 terraform/*.tfplan
+terraform/tfplan
 terraform/destroy-plan
 terraform/terraform.tfvars     # May contain real secrets — use .example instead
 terraform/crash.log

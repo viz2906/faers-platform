@@ -64,8 +64,9 @@ resource "aws_db_parameter_group" "main" {
 
   # Enable pg_stat_statements for query performance monitoring
   parameter {
-    name  = "shared_preload_libraries"
-    value = "pg_stat_statements"
+    name         = "shared_preload_libraries"
+    value        = "pg_stat_statements"
+    apply_method = "pending-reboot"
   }
 
   parameter {
