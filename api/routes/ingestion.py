@@ -4,11 +4,11 @@ import signal
 import psutil
 import json
 from datetime import datetime
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from typing import Dict, Any, List
 
 from ingestion.quarterly_pipeline import run_pipeline
-from api.dependencies import get_redis
+from api.dependencies import get_redis, get_db
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion"])
 
@@ -161,3 +161,32 @@ async def stop_ingestion():
 @router.get("/status")
 async def get_ingestion_status():
     return get_current_status()
+
+@router.post("/setup-schema", summary="Apply database schema to a fresh RDS instance")
+async def setup_schema(conn=Depends(get_db)):
+    """
+    Apply schema.sql and materialized_views.sql to the connected PostgreSQL database.
+    Safe to run multiple times — uses CREATE TABLE IF NOT EXISTS / CREATE MATERIALIZED VIEW IF NOT EXISTS.
+    Call this once after provisioning a new RDS instance before loading data.
+    """
+    from pathlib import Path
+    base = Path(__file__).parent.parent.parent / "database"
+    results = {}
+
+    for fname in ["schema.sql", "materialized_views.sql"]:
+        sql_file = base / fname
+        if not sql_file.exists():
+            results[fname] = "NOT FOUND"
+            continue
+        sql = sql_file.read_text(encoding="utf-8")
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SET statement_timeout = 0;")
+                cur.execute(sql)
+            conn.commit()
+            results[fname] = "applied"
+        except Exception as e:
+            conn.rollback()
+            results[fname] = f"ERROR: {e}"
+
+    return {"status": "done", "files": results}

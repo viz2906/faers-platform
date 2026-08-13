@@ -10,6 +10,7 @@ import os
 import time
 import json
 from typing import Optional
+from pathlib import Path
 
 import pandas as pd
 import psycopg2
@@ -182,6 +183,48 @@ def bulk_load_dataframe(
         raise
 
 # Pre-load checks
+def ensure_schema_exists(conn: psycopg2.extensions.connection):
+    """Apply schema.sql and materialized_views.sql if tables don't exist yet.
+    
+    Uses CREATE TABLE IF NOT EXISTS so it's safe to run on every pipeline call.
+    On a fresh RDS instance this creates all tables and materialized views.
+    On an existing DB it's a fast no-op.
+    """
+    # Check if tables already exist
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'faers_demo'
+        """)
+        exists = cur.fetchone()[0] > 0
+
+    if exists:
+        return  # Schema already applied — fast no-op
+
+    logger.info("First-time setup: applying database schema...")
+
+    # Locate SQL files relative to this file
+    base = Path(__file__).parent.parent / "database"
+    schema_file = base / "schema.sql"
+    views_file  = base / "materialized_views.sql"
+
+    for sql_file in [schema_file, views_file]:
+        if not sql_file.exists():
+            logger.warning(f"SQL file not found, skipping: {sql_file}")
+            continue
+        sql = sql_file.read_text(encoding="utf-8")
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SET statement_timeout = 0;")
+                cur.execute(sql)
+            conn.commit()
+            logger.info(f"Applied: {sql_file.name}")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Failed to apply {sql_file.name}: {e}")
+            raise
+
+
 def quarter_already_loaded(conn: psycopg2.extensions.connection, quarter: str) -> bool:
     """Check if data for this quarter already exists."""
     with conn.cursor() as cur:
@@ -263,6 +306,9 @@ def load_quarter(
     stats = {}
     
     try:
+        # Auto-apply schema on first run (safe no-op if already exists)
+        ensure_schema_exists(conn)
+        
         # Check if already loaded
         if not force and quarter_already_loaded(conn, quarter):
             logger.info(f"Quarter {quarter} already loaded. Use force=True to reload.")
