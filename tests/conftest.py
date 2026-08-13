@@ -170,22 +170,33 @@ def test_client(mock_db, mock_redis, mock_llm):
     """
     FastAPI TestClient with mocked dependencies injected via app.dependency_overrides.
     Use this for integration tests of API routes.
+
+    WHY we patch 'api.main.init_db_pool' (not 'api.dependencies.init_db_pool'):
+    api/main.py does:
+        from api.dependencies import init_db_pool, init_redis, init_llm
+    This creates LOCAL BINDINGS inside the api.main module namespace.
+    patch.object(dependencies, "init_db_pool") patches the source module but
+    api.main's lifespan already holds its own reference to the original function.
+    We must patch where it is USED, not where it is DEFINED.
     """
     from api.main import app
     from api import dependencies
 
-    app.dependency_overrides[dependencies.get_db] = lambda: mock_db
-    app.dependency_overrides[dependencies.get_redis] = lambda: mock_redis
-    app.dependency_overrides[dependencies.get_llm] = lambda: mock_llm
-
-    # Also patch connection pool for routes that use _db_pool directly
-    with patch.object(dependencies, "_db_pool") as mock_pool, \
-         patch.object(dependencies, "init_db_pool", lambda: None), \
-         patch.object(dependencies, "init_redis", lambda: None), \
-         patch.object(dependencies, "init_llm", lambda: None):
+    # Patch the local bindings in api.main where lifespan actually calls them
+    with patch("api.main.init_db_pool", lambda: None), \
+         patch("api.main.init_redis", lambda: None), \
+         patch("api.main.init_llm", lambda: None), \
+         patch.object(dependencies, "_db_pool") as mock_pool, \
+         patch.object(dependencies, "_redis_client", mock_redis), \
+         patch.object(dependencies, "_llm_client", mock_llm):
 
         mock_pool.getconn.return_value = mock_db
         mock_pool.putconn = MagicMock()
+
+        # Inject dependency overrides so FastAPI DI resolves correctly
+        app.dependency_overrides[dependencies.get_db] = lambda: mock_db
+        app.dependency_overrides[dependencies.get_redis] = lambda: mock_redis
+        app.dependency_overrides[dependencies.get_llm] = lambda: mock_llm
 
         with TestClient(app, raise_server_exceptions=False) as client:
             yield client

@@ -73,11 +73,15 @@ def cached_query(
         except Exception:
             pass
 
-    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        cur.execute(sql)
-        rows = [dict(r) for r in cur.fetchall()]
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql)
+            rows = [dict(r) for r in cur.fetchall()]
+    except Exception:
+        conn.rollback()
+        return []
 
-    if cache:
+    if cache and rows:
         try:
             cache.setex(cache_key, ttl, json.dumps(rows, default=str))
         except Exception:
@@ -384,4 +388,14 @@ async def db_summary(
     """
     cache_key = "faers:summary"
     rows = cached_query(cache, cache_key, conn, sql, ttl=3600)
-    return rows[0] if rows else {}
+    if not rows:
+        return {
+            "total_cases": 0,
+            "total_drug_records": 0,
+            "total_reaction_records": 0,
+            "total_countries": 0,
+            "unique_drugs": 0,
+            "unique_reactions": 0,
+            "loaded_quarters": None,
+        }
+    return rows[0]

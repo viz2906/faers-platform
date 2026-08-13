@@ -125,8 +125,17 @@ class FAERSQueryEngine:
         self.timeout_ms = timeout_seconds * 1000
         self.enable_cache = enable_cache
         self.explain_results = explain_results
-        self.main_model = os.getenv("OPENAI_MODEL", "gpt-4o")
-        self.mini_model = os.getenv("OPENAI_MINI_MODEL", "gpt-4o-mini")
+        # Auto-detect model based on LLM base_url
+        base_url_str = str(getattr(llm_client, "base_url", ""))
+        if "generativelanguage" in base_url_str:
+            default_model = "gemini-3.5-flash"
+        elif "groq" in base_url_str:
+            default_model = "llama-3.3-70b-versatile"
+        else:
+            default_model = "gpt-4o"
+
+        self.main_model = os.getenv("OPENAI_MODEL", default_model)
+        self.mini_model = os.getenv("OPENAI_MINI_MODEL", default_model)
 
     @classmethod
     def from_env(cls) -> "FAERSQueryEngine":

@@ -12,6 +12,7 @@ import psycopg2
 import psycopg2.pool
 import redis
 from openai import OpenAI
+from loguru import logger
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -71,16 +72,25 @@ def init_redis():
 
 def init_llm():
     global _llm_client
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL")
+    
+    if api_key and not base_url:
+        if api_key.startswith("AIza") or api_key.startswith("AQ.") or os.getenv("GEMINI_API_KEY"):
+            base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+        elif api_key.startswith("gsk_"):
+            base_url = "https://api.groq.com/openai/v1"
+
     if api_key:
         try:
             _llm_client = OpenAI(
                 api_key=api_key,
-                base_url=os.getenv("OPENAI_BASE_URL"),
+                base_url=base_url if base_url else None,
                 timeout=20.0,
                 max_retries=2,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM client: {e}")
             _llm_client = None
     else:
         _llm_client = None

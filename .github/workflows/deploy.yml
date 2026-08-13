@@ -129,7 +129,9 @@ jobs:
         run: npm run build
         working-directory: frontend
         env:
-          NEXT_PUBLIC_API_URL: "https://placeholder.example.com/api/v1"
+          # Use actual ALB DNS as the fallback URL so the build is production-realistic.
+          # In production deploy, the real build uses vars.APP_DOMAIN via docker/build-push-action.
+          NEXT_PUBLIC_API_URL: "http://faers-prod-alb-470910505.us-east-1.elb.amazonaws.com/api/v1"
           NEXT_TELEMETRY_DISABLED: "1"
 
   # ============================================================================
@@ -227,7 +229,9 @@ jobs:
             ${{ steps.meta.outputs.frontend_image }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:latest
           build-args: |
-            NEXT_PUBLIC_API_URL=https://${{ vars.APP_DOMAIN }}/api/v1
+            # Use custom domain if APP_DOMAIN is set as a repo variable.
+            # Falls back to the live ALB DNS name if no custom domain is configured.
+            NEXT_PUBLIC_API_URL=http://${{ vars.APP_DOMAIN || 'faers-prod-alb-470910505.us-east-1.elb.amazonaws.com' }}/api/v1
           cache-from: type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:buildcache
           cache-to:   type=registry,ref=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_FRONTEND_REPO }}:buildcache,mode=max
           provenance: false

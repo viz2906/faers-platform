@@ -1,0 +1,126 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "image": "149536467708.dkr.ecr.us-east-1.amazonaws.com/faers-prod-api:latest",
+      "cpu": 0,
+      "memoryReservation": 768,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "API_HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "REDIS_DB",
+          "value": "0"
+        },
+        {
+          "name": "REDIS_PORT",
+          "value": "6379"
+        },
+        {
+          "name": "API_PORT",
+          "value": "8000"
+        },
+        {
+          "name": "QUERY_TIMEOUT_SECONDS",
+          "value": "5"
+        },
+        {
+          "name": "POSTGRES_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "ENABLE_CACHE",
+          "value": "true"
+        },
+        {
+          "name": "API_WORKERS",
+          "value": "4"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "value": "PLACEHOLDER_REPLACED_BY_CI"
+        },
+        {
+          "name": "EXPLAIN_RESULTS",
+          "value": "true"
+        },
+        {
+          "name": "REDIS_SSL",
+          "value": "true"
+        },
+        {
+          "name": "REDIS_TTL_SECONDS",
+          "value": "3600"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "POSTGRES_HOST",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/rds-credentials-Z1RxL1:host::"
+        },
+        {
+          "name": "POSTGRES_DB",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/rds-credentials-Z1RxL1:dbname::"
+        },
+        {
+          "name": "POSTGRES_USER",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/rds-credentials-Z1RxL1:username::"
+        },
+        {
+          "name": "POSTGRES_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/rds-credentials-Z1RxL1:password::"
+        },
+        {
+          "name": "REDIS_HOST",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/redis-credentials-N2IKN2:host::"
+        },
+        {
+          "name": "REDIS_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:149536467708:secret:faers-prod/redis-credentials-N2IKN2:auth_token::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/faers-prod/api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "api"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8000/livez || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "faers-prod-api",
+  "taskRoleArn": "arn:aws:iam::149536467708:role/faers-prod-ecs-task",
+  "executionRoleArn": "arn:aws:iam::149536467708:role/faers-prod-ecs-task-execution",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "placementConstraints": [],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024"
+}

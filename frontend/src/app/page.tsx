@@ -10,7 +10,7 @@ import QuarterlyTrends from '@/components/QuarterlyTrends'
 import NLQueryBox from '@/components/NLQueryBox'
 import DataLoader from '@/components/DataLoader'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1'
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<any>(null)

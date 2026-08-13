@@ -1,0 +1,17 @@
+{
+  "version": 0.0,
+  "Resources": [
+    {
+      "TargetService": {
+        "Type": "AWS::ECS::Service",
+        "Properties": {
+          "TaskDefinition": "arn:aws:ecs:us-east-1:149536467708:task-definition/faers-prod-api:4",
+          "LoadBalancerInfo": {
+            "ContainerName": "api",
+            "ContainerPort": 8000
+          }
+        }
+      }
+    }
+  ]
+}

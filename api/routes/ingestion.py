@@ -2,17 +2,20 @@ import time
 import os
 import signal
 import psutil
+import json
 from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from typing import Dict, Any, List
 
 from ingestion.quarterly_pipeline import run_pipeline
+from api.dependencies import get_redis
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion"])
 
 MAX_LOG_LINES = 200
+REDIS_KEY = "faers_ingestion_status"
 
-# Simple in-memory state tracker for ingestion jobs
+# In-memory fallback
 ingestion_status: Dict[str, Any] = {
     "status": "idle",  # idle, running, completed, error, stopped
     "quarter": None,
@@ -23,15 +26,36 @@ ingestion_status: Dict[str, Any] = {
     "stage": None,
     "detail": None,
     "progress": 0,
-    "log": [],  # live log lines
+    "log": [],
 }
+
+def _save_status():
+    """Save ingestion status to Redis so all workers/containers stay in sync."""
+    r = get_redis()
+    if r:
+        try:
+            r.set(REDIS_KEY, json.dumps(ingestion_status))
+        except Exception:
+            pass
+
+def get_current_status() -> Dict[str, Any]:
+    """Retrieve shared ingestion status from Redis, falling back to local state."""
+    r = get_redis()
+    if r:
+        try:
+            data = r.get(REDIS_KEY)
+            if data:
+                return json.loads(data)
+        except Exception:
+            pass
+    return ingestion_status
 
 def _add_log(message: str):
     ts = datetime.utcnow().strftime("%H:%M:%S")
     ingestion_status["log"].append(f"[{ts}] {message}")
-    # Keep log from growing unbounded
     if len(ingestion_status["log"]) > MAX_LOG_LINES:
         ingestion_status["log"] = ingestion_status["log"][-MAX_LOG_LINES:]
+    _save_status()
 
 def load_data_background(quarter: str):
     global ingestion_status
@@ -45,6 +69,7 @@ def load_data_background(quarter: str):
     ingestion_status["detail"] = "Starting pipeline..."
     ingestion_status["progress"] = 0
     ingestion_status["log"] = []
+    _save_status()
 
     _add_log(f"Pipeline started for quarter: {quarter.upper()}")
 
@@ -53,6 +78,7 @@ def load_data_background(quarter: str):
         ingestion_status["detail"] = detail
         ingestion_status["progress"] = progress
         _add_log(f"[{stage}] {detail}")
+        _save_status()
 
     try:
         stats = run_pipeline(
@@ -63,7 +89,8 @@ def load_data_background(quarter: str):
             status_callback=status_callback
         )
 
-        if ingestion_status["status"] == "running":
+        current = get_current_status()
+        if current.get("status") == "running":
             ingestion_status["status"] = "completed"
             ingestion_status["stats"] = stats
             ingestion_status["end_time"] = time.time()
@@ -76,32 +103,46 @@ def load_data_background(quarter: str):
                 for table, rows in stats.items():
                     _add_log(f"  {table}: {rows:,} rows loaded")
                 _add_log(f"  TOTAL: {total_rows:,} rows across {len(stats)} tables")
+            _save_status()
 
     except Exception as e:
-        if ingestion_status["status"] == "running":
+        current = get_current_status()
+        if current.get("status") == "running":
             ingestion_status["status"] = "error"
             ingestion_status["error"] = str(e)
             ingestion_status["end_time"] = time.time()
             _add_log(f"ERROR: {str(e)}")
+            _save_status()
 
 @router.post("/load/{quarter}")
 async def start_ingestion(quarter: str, background_tasks: BackgroundTasks):
     global ingestion_status
-    if ingestion_status["status"] == "running":
+    current = get_current_status()
+    if current.get("status") == "running":
         raise HTTPException(status_code=400, detail="An ingestion job is already running.")
 
     quarter = quarter.lower().strip()
     background_tasks.add_task(load_data_background, quarter)
+    ingestion_status["status"] = "running"
+    ingestion_status["quarter"] = quarter
+    ingestion_status["start_time"] = time.time()
+    ingestion_status["stage"] = "Initializing"
+    ingestion_status["detail"] = "Starting background worker..."
+    ingestion_status["progress"] = 1
+    _save_status()
+
     return {"message": f"Ingestion started for {quarter}", "status": "running"}
 
 @router.post("/stop")
 async def stop_ingestion():
     global ingestion_status
-    if ingestion_status["status"] == "running":
+    current = get_current_status()
+    if current.get("status") == "running":
         ingestion_status["status"] = "stopped"
         ingestion_status["error"] = "Stopped by user"
         ingestion_status["end_time"] = time.time()
         _add_log("Pipeline stopped by user.")
+        _save_status()
 
         # Kill running subprocesses related to FAERS download/parsing
         for proc in psutil.process_iter(['pid', 'cmdline']):
@@ -119,4 +160,4 @@ async def stop_ingestion():
 
 @router.get("/status")
 async def get_ingestion_status():
-    return ingestion_status
+    return get_current_status()

@@ -263,4 +263,12 @@ variable "autoscaling_alb_target_requests" {
   default     = 1000
 }
 
+variable "openai_api_key" {
+  description = "OpenAI API Key for Natural Language Querying (NLQ)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+
 

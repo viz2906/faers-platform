@@ -176,6 +176,7 @@ resource "aws_ecs_task_definition" "api" {
         { name = "QUERY_TIMEOUT_SECONDS", value = "5" },
         # ElastiCache uses TLS — the redis-py client must be configured with ssl=True
         { name = "REDIS_SSL", value = "true" },
+        { name = "OPENAI_API_KEY", value = var.openai_api_key },
       ]
 
       # Sensitive values — pulled from Secrets Manager by the ECS agent at launch.
@@ -270,9 +271,12 @@ resource "aws_ecs_task_definition" "frontend" {
         { name = "PORT", value = "3000" },
         { name = "HOSTNAME", value = "0.0.0.0" },
         # NEXT_PUBLIC_API_URL must point to the ALB public domain — browsers call this.
-        # The value is baked into the JS bundle at Docker build time (--build-arg).
-        # This env var here is informational; it does NOT override the baked value.
-        { name = "NEXT_PUBLIC_API_URL", value = "https://${var.domain_name}/api/v1" },
+        # When enable_https = true and domain_name is set, use the custom domain.
+        # When enable_https = false (ALB only), fall back to the ALB DNS name directly.
+        {
+          name  = "NEXT_PUBLIC_API_URL"
+          value = var.enable_https && var.domain_name != "" ? "https://${var.domain_name}/api/v1" : "http://${aws_lb.main.dns_name}/api/v1"
+        },
       ]
 
       healthCheck = {
