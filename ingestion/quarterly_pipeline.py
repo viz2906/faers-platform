@@ -86,7 +86,7 @@ def run_pipeline(
     
     # Step 2: Parse
     update_status("Parsing", "Parsing ASCII files into database format...", 10)
-    ascii_dir = str(Path(data_dir) / quarter / "ascii")
+    ascii_dir_str = str(Path(data_dir) / quarter / "ascii")
     
     console.print("\n[cyan]Step 2/3: Parsing ASCII files...[/cyan]")
     with Progress(
@@ -96,7 +96,7 @@ def run_pipeline(
         console=console,
     ) as progress_cli:
         task = progress_cli.add_task("Parsing FAERS tables...", total=None)
-        tables = parse_quarter(ascii_dir, quarter, status_callback)
+        tables = parse_quarter(ascii_dir_str, quarter, status_callback)
         progress_cli.update(task, completed=True)
     
     if not tables:

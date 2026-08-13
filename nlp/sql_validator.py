@@ -81,10 +81,9 @@ def validate_sql(sql: str) -> str:
     
     # Check for CANNOT_ANSWER sentinel
     if sql.strip().startswith("SELECT 'CANNOT_ANSWER:"):
-        raise SQLValidationError(
-            "Query cannot be answered: " + 
-            re.search(r"CANNOT_ANSWER: ([^']+)", sql).group(1) if re.search(r"CANNOT_ANSWER: ([^']+)", sql) else "Unknown reason"
-        )
+        match = re.search(r"CANNOT_ANSWER: ([^']+)", sql)
+        reason = match.group(1) if match else "Unknown reason"
+        raise SQLValidationError(f"Query cannot be answered: {reason}")
     
     # Must start with SELECT or WITH (CTEs use WITH ... AS (...) SELECT)
     sql_stripped = sql.strip().upper()
