@@ -1,12 +1,10 @@
-import subprocess, json, sys
+import json
+import subprocess
+
 
 def codedeploy(app, dg, appspec_file, description):
     with open(appspec_file) as f:
         content = f.read()
-    revision = json.dumps({
-        "revisionType": "AppSpecContent",
-        "appSpecContent": {"content": content}
-    })
     result = subprocess.run([
         r"C:\Program Files\Amazon\AWSCLIV2\aws.exe",
         "deploy", "create-deployment",

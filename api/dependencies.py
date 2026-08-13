@@ -5,15 +5,13 @@ Uses connection pooling for performance under concurrent load.
 """
 
 import os
-from functools import lru_cache
-from typing import Generator
 
 import psycopg2
 import psycopg2.pool
 import redis
-from openai import OpenAI
-from loguru import logger
 from dotenv import load_dotenv
+from loguru import logger
+from openai import OpenAI
 
 load_dotenv()
 

@@ -10,9 +10,12 @@ Usage in a test file:
         assert result.sql
 """
 
-import pytest
+from datetime import UTC
 from unittest.mock import MagicMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
+
 
 # Sample FAERS data fixtures (small, deterministic datasets)
 @pytest.fixture
@@ -50,7 +53,7 @@ def mock_db(sample_columns, sample_drug_rows):
     Mock psycopg2 connection that returns deterministic FAERS data.
     Cursor context manager is fully simulated.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     mock_cursor = MagicMock()
     mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)
@@ -61,7 +64,7 @@ def mock_db(sample_columns, sample_drug_rows):
         executed_sql = str(mock_cursor.execute.call_args)
         if "nlq_query_log" in executed_sql:
             return [
-                ("What are the top drugs?", "SELECT * FROM mv_top_drugs", 120, 10, False, None, datetime.now(timezone.utc))
+                ("What are the top drugs?", "SELECT * FROM mv_top_drugs", 120, 10, False, None, datetime.now(UTC))
             ]
         return sample_drug_rows
 
@@ -179,8 +182,8 @@ def test_client(mock_db, mock_redis, mock_llm):
     api.main's lifespan already holds its own reference to the original function.
     We must patch where it is USED, not where it is DEFINED.
     """
-    from api.main import app
     from api import dependencies
+    from api.main import app
 
     # Patch the local bindings in api.main where lifespan actually calls them
     with patch("api.main.init_db_pool", lambda: None), \

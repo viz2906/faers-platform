@@ -5,23 +5,21 @@ The main entry point for all natural language queries against FAERS data.
 Orchestrates: LLM → SQL → Validate → Route → Execute → Explain → Cache
 """
 
-import os
-import time
-import json
 import hashlib
+import json
+import os
 import re
-from typing import Optional, Any
-from datetime import datetime
+import time
 
 import psycopg2
 import psycopg2.extras
 import redis
-from openai import OpenAI
-from loguru import logger
 from dotenv import load_dotenv
+from loguru import logger
+from openai import OpenAI
 
+from nlp.sql_validator import SQLValidationError, sanitize_user_input, validate_sql
 from nlp.system_prompt import FAERS_SYSTEM_PROMPT
-from nlp.sql_validator import validate_sql, sanitize_user_input, SQLValidationError
 
 load_dotenv()
 
@@ -37,8 +35,8 @@ class QueryResult:
         response_time_ms: int,
         from_cache: bool = False,
         query_type: str = "unknown",
-        warning: Optional[str] = None,
-        error: Optional[str] = None,
+        warning: str | None = None,
+        error: str | None = None,
     ):
         self.question = question
         self.sql = sql
@@ -113,7 +111,7 @@ class FAERSQueryEngine:
     def __init__(
         self,
         db_conn: psycopg2.extensions.connection,
-        redis_client: Optional[redis.Redis],
+        redis_client: redis.Redis | None,
         llm_client: OpenAI,
         timeout_seconds: int = 5,
         enable_cache: bool = True,
@@ -175,7 +173,7 @@ class FAERSQueryEngine:
             explain_results=os.getenv("EXPLAIN_RESULTS", "true").lower() == "true",
         )
 
-    def query(self, question: str, quarter_filter: Optional[str] = None) -> QueryResult:
+    def query(self, question: str, quarter_filter: str | None = None) -> QueryResult:
         """
         Execute a natural language query against FAERS data.
         
@@ -379,7 +377,7 @@ Keep it factual and concise."""
     def _cache_key(self, question: str) -> str:
         return f"faers:query:{hashlib.md5(question.encode()).hexdigest()}"
 
-    def _get_cached(self, key: str) -> Optional[dict]:
+    def _get_cached(self, key: str) -> dict | None:
         try:
             raw = self.cache.get(key)
             if raw:
@@ -396,7 +394,7 @@ Keep it factual and concise."""
             logger.debug(f"Cache write failed: {e}")
 
     # Helpers
-    def _get_faers_warning(self, question: str) -> Optional[str]:
+    def _get_faers_warning(self, question: str) -> str | None:
         """Return contextual FAERS data interpretation warning."""
         q_lower = question.lower()
         if any(w in q_lower for w in ["cause", "causes", "responsible", "proven", "definitely"]):

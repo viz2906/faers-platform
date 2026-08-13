@@ -6,12 +6,10 @@ Results are cached in Redis.
 """
 
 import json
-from typing import Optional, List
-from datetime import datetime
 
 import psycopg2
 import redis
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from api.dependencies import get_db, get_redis
@@ -26,7 +24,7 @@ class DrugReactionRow(BaseModel):
     drug: str
     reaction: str
     report_count: int
-    quarter: Optional[str] = None
+    quarter: str | None = None
 
 class DrugOutcomeRow(BaseModel):
     drug: str
@@ -39,7 +37,7 @@ class SignalRow(BaseModel):
     reaction: str
     report_count: int
     prr: float
-    ror: Optional[float] = None
+    ror: float | None = None
     is_signal: bool
 
 class CountryRow(BaseModel):
@@ -54,7 +52,7 @@ class QuarterlyTrend(BaseModel):
     deaths: int
     hospitalizations: int
     life_threatening: int
-    avg_age: Optional[float] = None
+    avg_age: float | None = None
 
 # Helper
 def cached_query(
@@ -92,7 +90,7 @@ def cached_query(
 # Endpoints
 @router.get("/top-drugs", summary="Top drugs by adverse event report count")
 async def top_drugs(
-    quarter: Optional[str] = Query(None, example="2026q1"),
+    quarter: str | None = Query(None, example="2026q1"),
     role: str = Query("PS", enum=["PS", "SS", "C", "all"]),
     limit: int = Query(20, ge=1, le=200),
     conn=Depends(get_db),
@@ -140,7 +138,7 @@ async def top_drugs(
 @router.get("/drug/{drug_name}/reactions", summary="Adverse reactions for a specific drug")
 async def drug_reactions(
     drug_name: str,
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     role: str = Query("PS", enum=["PS", "SS", "C", "all"]),
     limit: int = Query(30, ge=1, le=200),
     conn=Depends(get_db),
@@ -173,7 +171,7 @@ async def drug_reactions(
 @router.get("/drug/{drug_name}/outcomes", summary="Patient outcomes for a specific drug")
 async def drug_outcomes(
     drug_name: str,
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     conn=Depends(get_db),
     cache=Depends(get_redis),
 ):
@@ -199,7 +197,7 @@ async def drug_outcomes(
 @router.get("/drug/{drug_name}/signal", summary="Safety signal detection (PRR/ROR) for a drug")
 async def drug_signal(
     drug_name: str,
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     min_reports: int = Query(3, ge=1),
     signals_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=200),
@@ -246,7 +244,7 @@ async def drug_signal(
 @router.get("/drug/{drug_name}/demographics", summary="Patient demographics for a drug")
 async def drug_demographics(
     drug_name: str,
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     conn=Depends(get_db),
     cache=Depends(get_redis),
 ):
@@ -271,7 +269,7 @@ async def drug_demographics(
 
 @router.get("/deaths/top-drugs", summary="Drugs with most death-associated reports")
 async def death_reports(
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     limit: int = Query(20, ge=1, le=100),
     conn=Depends(get_db),
     cache=Depends(get_redis),
@@ -301,7 +299,7 @@ async def death_reports(
 
 @router.get("/countries", summary="Report distribution by country")
 async def reports_by_country(
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     limit: int = Query(50, ge=1, le=300),
     conn=Depends(get_db),
     cache=Depends(get_redis),
@@ -348,7 +346,7 @@ async def quarterly_trends(
 
 @router.get("/top-reactions", summary="Most commonly reported reactions overall")
 async def top_reactions(
-    quarter: Optional[str] = Query(None),
+    quarter: str | None = Query(None),
     limit: int = Query(30, ge=1, le=200),
     conn=Depends(get_db),
     cache=Depends(get_redis),

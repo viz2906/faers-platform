@@ -6,17 +6,16 @@ Handles schema creation, data type alignment, and materialized view refresh.
 """
 
 import io
+import json
 import os
 import time
-import json
-from typing import Optional
 from pathlib import Path
 
 import pandas as pd
 import psycopg2
 import psycopg2.extras
-from loguru import logger
 from dotenv import load_dotenv
+from loguru import logger
 
 load_dotenv()
 
@@ -175,7 +174,7 @@ def bulk_load_dataframe(
         elapsed = time.time() - start
         rate = len(df_subset) / elapsed if elapsed > 0 else 0
         logger.info(f"   {table_name}: {len(df_subset):,} rows in {elapsed:.1f}s ({rate:,.0f} rows/sec)")
-        return len(df_subset)
+        return rows_loaded
     
     except Exception as e:
         conn.rollback()
@@ -364,8 +363,8 @@ def load_quarter(
         conn.close()
 
 if __name__ == "__main__":
-    import sys
     import json
+    import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
     from ingestion.parse_faers import parse_quarter
     

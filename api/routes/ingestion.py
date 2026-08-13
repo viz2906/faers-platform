@@ -1,14 +1,15 @@
-import time
+import json
 import os
 import signal
-import psutil
-import json
+import time
 from datetime import datetime
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
-from typing import Dict, Any, List
+from typing import Any
 
+import psutil
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+
+from api.dependencies import get_db, get_redis
 from ingestion.quarterly_pipeline import run_pipeline
-from api.dependencies import get_redis, get_db
 
 router = APIRouter(prefix="/ingestion", tags=["Ingestion"])
 
@@ -16,7 +17,7 @@ MAX_LOG_LINES = 200
 REDIS_KEY = "faers_ingestion_status"
 
 # In-memory fallback
-ingestion_status: Dict[str, Any] = {
+ingestion_status: dict[str, Any] = {
     "status": "idle",  # idle, running, completed, error, stopped
     "quarter": None,
     "start_time": None,
@@ -38,7 +39,7 @@ def _save_status():
         except Exception:
             pass
 
-def get_current_status() -> Dict[str, Any]:
+def get_current_status() -> dict[str, Any]:
     """Retrieve shared ingestion status from Redis, falling back to local state."""
     r = get_redis()
     if r:
