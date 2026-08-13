@@ -181,7 +181,30 @@ export default function NLQueryBox({ apiBase }: NLQueryBoxProps) {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 400, overflowY: 'auto', paddingRight: 8 }}>
               {history.map((h, i) => (
-                <div key={i} style={{ padding: 12, background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div
+                  key={i}
+                  onClick={() => {
+                    setQuestion(h.question);
+                    submit(h.question);
+                  }}
+                  title="Click to run this query again"
+                  style={{
+                    padding: 12,
+                    background: 'var(--bg)',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.2s, background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--accent-blue)';
+                    e.currentTarget.style.backgroundColor = 'var(--bg-card-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--border)';
+                    e.currentTarget.style.backgroundColor = 'var(--bg)';
+                  }}
+                >
                   <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Q: {h.question}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
                     {h.timestamp ? new Date(h.timestamp).toLocaleString() : ''} · {h.response_time_ms}ms {h.error ? <span style={{color:'var(--color-death)'}}>Failed</span> : `· ${h.rows_returned} rows`}

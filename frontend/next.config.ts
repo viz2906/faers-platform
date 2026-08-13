@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const API_ORIGIN =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1$/, "") ||
-  "http://faers-prod-alb-470910505.us-east-1.elb.amazonaws.com";
+  "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   // Required for multi-stage Docker builds: produces a self-contained

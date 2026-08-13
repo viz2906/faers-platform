@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 interface DataLoaderProps {
   apiBase: string;
@@ -69,7 +69,6 @@ export default function DataLoader({ apiBase }: DataLoaderProps) {
   const [quarter, setQuarter] = useState('2025q4');
   const [status, setStatus] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const logRef = useRef<HTMLDivElement>(null);
 
   const fetchStatus = async () => {
     try {
@@ -88,12 +87,7 @@ export default function DataLoader({ apiBase }: DataLoaderProps) {
     return () => clearInterval(interval);
   }, [apiBase]);
 
-  // Auto-scroll log to bottom
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [status?.log]);
+
 
   const handleLoad = async () => {
     try {
@@ -215,85 +209,7 @@ export default function DataLoader({ apiBase }: DataLoaderProps) {
         )}
       </div>
 
-      {/* Live Log Panel */}
-      {hasActivity && status.log && status.log.length > 0 && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-              Pipeline Log
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {status.status === 'running' && (
-                <span style={{
-                  display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
-                  backgroundColor: 'var(--accent-green)',
-                  boxShadow: '0 0 0 2px rgba(34,197,94,0.3)',
-                  animation: 'pulse-dot 1s ease-in-out infinite',
-                }} />
-              )}
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                {status.log.length} events · elapsed {formatElapsed()}
-              </span>
-            </div>
-          </div>
-          <div
-            ref={logRef}
-            style={{
-              height: 220,
-              overflowY: 'auto',
-              backgroundColor: '#0f172a',
-              borderRadius: 6,
-              padding: '10px 14px',
-              fontFamily: "'SF Mono', 'JetBrains Mono', 'Fira Code', monospace",
-              fontSize: 11.5,
-              lineHeight: 1.7,
-              color: '#94a3b8',
-            }}
-          >
-            {status.log.map((line: string, i: number) => {
-              const isError = line.includes('ERROR') || line.includes('FAILED');
-              const isSuccess = line.includes('complete') || line.includes('rows loaded') || line.includes('TOTAL');
-              const isStage = line.includes('] [') || line.match(/\] \[.+\]/);
-              return (
-                <div key={i} style={{
-                  color: isError ? '#f87171' : isSuccess ? '#4ade80' : isStage ? '#60a5fa' : '#94a3b8',
-                  paddingBottom: 1,
-                }}>
-                  {line}
-                </div>
-              );
-            })}
-            {status.status === 'running' && (
-              <div style={{ color: 'var(--accent-blue)', opacity: 0.7 }}>
-                <span style={{ animation: 'blink 1s step-end infinite' }}>_</span>
-              </div>
-            )}
-          </div>
 
-          {/* Stats Summary (shown after completion) */}
-          {status.status === 'completed' && status.stats && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-                Load Summary
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                {Object.entries(status.stats as Record<string, number>).map(([table, rows]) => (
-                  <div key={table} style={{
-                    backgroundColor: 'var(--bg-card-hover)',
-                    borderRadius: 6, padding: '6px 12px',
-                    fontSize: 11,
-                  }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>{table.replace('faers_', '')}</span>
-                    <span style={{ color: 'var(--accent-blue)', fontWeight: 700, marginLeft: 8 }}>
-                      {(rows as number).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       <style>{`
         @keyframes pulse-ring {
