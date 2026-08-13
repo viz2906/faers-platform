@@ -6,10 +6,8 @@ Uses both regex-based blocking and sqlparse AST validation.
 """
 
 import re
+
 import sqlparse
-from sqlparse.sql import Statement
-from sqlparse.tokens import Keyword, DDL, DML
-from typing import Optional
 
 # Allowed Tables and Views
 ALLOWED_READ_TABLES = frozenset({

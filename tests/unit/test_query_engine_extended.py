@@ -5,10 +5,8 @@ Covers the execution, logging, reconnect, and explanation paths
 in query_engine.py that are not covered by test_query_engine.py.
 """
 
-import pytest
-import json
-import psycopg2
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
+
 
 # _execute path — timeout and execution error handling
 class TestQueryExecutionPaths:
@@ -16,8 +14,9 @@ class TestQueryExecutionPaths:
 
     def test_query_timeout_returns_friendly_error(self, mock_db, mock_redis, mock_llm):
         """When DB raises QueryCanceled (timeout), user gets a clear message."""
-        from nlp.query_engine import FAERSQueryEngine
         import psycopg2.errors
+
+        from nlp.query_engine import FAERSQueryEngine
 
         mock_cursor = MagicMock()
         mock_cursor.__enter__ = MagicMock(return_value=mock_cursor)

@@ -6,13 +6,13 @@ This is a critical security component — 100% line coverage is the goal.
 """
 
 import pytest
+
 from nlp.sql_validator import (
-    validate_sql,
-    sanitize_user_input,
     SQLValidationError,
-    BLOCKED_KEYWORDS,
-    ALLOWED_READ_TABLES,
+    sanitize_user_input,
+    validate_sql,
 )
+
 
 # Valid SQL — must PASS validation
 class TestValidSQL:

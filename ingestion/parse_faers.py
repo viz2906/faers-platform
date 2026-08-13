@@ -6,15 +6,11 @@ This module handles all the quirks: mixed case headers, bad lines,
 inconsistent date formats, etc.
 """
 
-import os
 import glob
+import os
 import re
-import logging
-from pathlib import Path
-from typing import Optional
 
 import pandas as pd
-import numpy as np
 from loguru import logger
 
 # FAERS File Definitions
@@ -117,7 +113,7 @@ TABLE_DTYPES = {
 }
 
 # Core Parser
-def find_table_file(ascii_dir: str, table_name: str) -> Optional[str]:
+def find_table_file(ascii_dir: str, table_name: str) -> str | None:
     """Find the file for a given table in the ASCII directory."""
     for pattern in TABLE_PATTERNS[table_name]:
         matches = glob.glob(os.path.join(ascii_dir, pattern))
@@ -174,7 +170,7 @@ FAERS_DATE_FORMATS = [
 
 INVALID_DATES = {"", "0", "00000000", "00000", "0000", "99999999"}
 
-def parse_faers_date(date_str) -> Optional[pd.Timestamp]:
+def parse_faers_date(date_str) -> pd.Timestamp | None:
     """Parse FAERS date strings which come in many inconsistent formats."""
     if pd.isna(date_str):
         return None
@@ -210,7 +206,7 @@ AGE_TO_YEARS = {
     "HR":  1.0 / 8766.0,
 }
 
-def normalize_age_to_years(age: float, age_cod: str) -> Optional[float]:
+def normalize_age_to_years(age: float, age_cod: str) -> float | None:
     """Convert age from any FAERS unit to decimal years."""
     if pd.isna(age) or age <= 0:
         return None
@@ -231,7 +227,7 @@ WEIGHT_TO_KG = {
     "GMS": 0.001,
 }
 
-def normalize_weight_to_kg(wt: float, wt_cod: str) -> Optional[float]:
+def normalize_weight_to_kg(wt: float, wt_cod: str) -> float | None:
     """Convert weight to kilograms."""
     if pd.isna(wt) or wt <= 0:
         return None

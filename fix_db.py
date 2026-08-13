@@ -1,6 +1,8 @@
-import psycopg2
 import os
+
+import psycopg2
 from dotenv import load_dotenv
+
 load_dotenv()
 conn = psycopg2.connect(
     host=os.getenv('POSTGRES_HOST', 'localhost'),
@@ -24,7 +26,7 @@ for v in views:
 cur.execute("ALTER TABLE faers_demo ALTER COLUMN reporter_country TYPE VARCHAR(100);")
 cur.execute("ALTER TABLE faers_demo ALTER COLUMN occr_country TYPE VARCHAR(100);")
 
-with open('database/materialized_views.sql', 'r') as f:
+with open('database/materialized_views.sql') as f:
     sql = f.read()
     cur.execute(sql)
 

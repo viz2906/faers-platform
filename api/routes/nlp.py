@@ -2,11 +2,11 @@
 Natural Language Query endpoint for FAERS
 """
 
-from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from api.dependencies import get_db, get_redis, get_llm
+from api.dependencies import get_db, get_llm, get_redis
 from nlp.query_engine import FAERSQueryEngine
 
 router = APIRouter()
@@ -18,7 +18,7 @@ class NLQueryRequest(BaseModel):
         max_length=1000,
         example="What are the top adverse reactions for ibuprofen?",
     )
-    quarter: Optional[str] = Field(
+    quarter: str | None = Field(
         None,
         example="2026q1",
         description="Filter results to a specific quarter (optional)",
@@ -34,8 +34,8 @@ class NLQueryResponse(BaseModel):
     response_time_ms: int
     from_cache: bool
     query_type: str
-    warning: Optional[str] = None
-    error: Optional[str] = None
+    warning: str | None = None
+    error: str | None = None
 
 @router.post("/query", response_model=NLQueryResponse, summary="Natural language query")
 async def nlp_query(

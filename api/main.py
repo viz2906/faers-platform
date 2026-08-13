@@ -3,7 +3,6 @@ FastAPI application for FAERS Analytics Platform
 """
 
 import time
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -11,8 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from api.dependencies import init_db_pool, init_redis, init_llm
-from api.routes import analytics, nlp, ingestion
+from api.dependencies import init_db_pool, init_llm, init_redis
+from api.routes import analytics, ingestion, nlp
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

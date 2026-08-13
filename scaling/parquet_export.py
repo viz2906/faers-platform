@@ -9,18 +9,17 @@ Usage:
     python scaling/parquet_export.py --all    # Export all loaded quarters
 """
 
-import os
-import sys
 import argparse
+import os
 import time
 from pathlib import Path
 
-import psycopg2
 import pandas as pd
+import psycopg2
 import pyarrow as pa
 import pyarrow.parquet as pq
-from loguru import logger
 from dotenv import load_dotenv
+from loguru import logger
 
 load_dotenv()
 

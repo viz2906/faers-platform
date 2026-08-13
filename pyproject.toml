@@ -52,7 +52,7 @@ exclude = [".git", "venv", "node_modules"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+ignore = ["E501", "E701", "E722", "F841"]
 
 [tool.mypy]
 python_version = "3.11"

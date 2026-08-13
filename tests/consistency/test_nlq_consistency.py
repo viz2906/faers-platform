@@ -17,8 +17,9 @@ All variants must:
   3. Have the same SQL structure (GROUP BY the same column type)
 """
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 # Question variant groups — same intent, different words
 # Each tuple: (intent_label, list_of_equivalent_phrasings, expected_table_or_view)

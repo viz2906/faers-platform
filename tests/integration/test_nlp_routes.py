@@ -5,7 +5,6 @@ Tests the FastAPI routes using a TestClient with mocked dependencies.
 No real DB, Redis, or OpenAI calls are made.
 """
 
-import pytest
 
 class TestNLPQueryEndpoint:
     """Tests for POST /api/v1/nlp/query"""

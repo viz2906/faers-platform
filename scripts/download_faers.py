@@ -1,8 +1,10 @@
 import os
 import sys
-import zipfile
-import requests
 import time
+import zipfile
+
+import requests
+
 
 def download_file(url, dest_path):
     print(f"[DOWNLOAD] Starting download from {url} to {dest_path}...")

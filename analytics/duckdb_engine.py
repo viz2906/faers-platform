@@ -13,11 +13,11 @@ multi-year trend analysis — anything too slow for PostgreSQL.
 import os
 import time
 from pathlib import Path
-from typing import Optional
 
-import pandas as pd
 import duckdb
+import pandas as pd
 from loguru import logger
+
 
 # DuckDB Connection (in-process, no server needed)
 class DuckDBEngine:
@@ -33,7 +33,7 @@ class DuckDBEngine:
         self,
         parquet_dir: str = "./data/parquet",
         mode: str = "parquet",  # "parquet" or "postgres"
-        pg_connection_string: Optional[str] = None,
+        pg_connection_string: str | None = None,
         memory_limit: str = "4GB",
         threads: int = 4,
     ):

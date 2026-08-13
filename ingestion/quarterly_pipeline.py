@@ -8,23 +8,22 @@ Usage:
     python ingestion/quarterly_pipeline.py --all-available   # Download + load all quarters
 """
 
-import os
-import sys
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 from loguru import logger
 from rich.console import Console
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
-from rich import print as rprint
+from rich.table import Table
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from ingestion.parse_faers import parse_quarter
 from ingestion.load_to_db import load_quarter
+from ingestion.parse_faers import parse_quarter
 
 console = Console()
 
@@ -89,7 +88,7 @@ def run_pipeline(
     update_status("Parsing", "Parsing ASCII files into database format...", 10)
     ascii_dir = str(Path(data_dir) / quarter / "ascii")
     
-    console.print(f"\n[cyan]Step 2/3: Parsing ASCII files...[/cyan]")
+    console.print("\n[cyan]Step 2/3: Parsing ASCII files...[/cyan]")
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -101,12 +100,12 @@ def run_pipeline(
         progress_cli.update(task, completed=True)
     
     if not tables:
-        console.print(f"[red]Parse failed — no tables returned[/red]")
+        console.print("[red]Parse failed — no tables returned[/red]")
         return {}
     
     # Step 3: Load to DB
     update_status("Loading", "Bulk loading parsed data into PostgreSQL...", 40)
-    console.print(f"\n[cyan]Step 3/3: Loading to PostgreSQL...[/cyan]")
+    console.print("\n[cyan]Step 3/3: Loading to PostgreSQL...[/cyan]")
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),

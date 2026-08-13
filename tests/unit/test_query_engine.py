@@ -5,8 +5,8 @@ Tests the FAERSQueryEngine class in isolation using mock dependencies.
 No real database, Redis, or OpenAI calls are made.
 """
 
-import pytest
-from nlp.query_engine import FAERSQueryEngine, classify_query, QueryResult
+from nlp.query_engine import FAERSQueryEngine, QueryResult, classify_query
+
 
 # classify_query — Query Router Tests
 class TestClassifyQuery:
@@ -141,7 +141,6 @@ class TestCacheKey:
 
     def test_cache_hit_returns_from_cache(self, mock_db, mock_redis_hit, mock_llm):
         """When Redis has a cached result, it must be returned without calling the LLM."""
-        from nlp.query_engine import FAERSQueryEngine
         engine = FAERSQueryEngine(
             db_conn=mock_db,
             redis_client=mock_redis_hit,
