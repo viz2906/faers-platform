@@ -39,7 +39,7 @@ resource "aws_iam_openid_connect_provider" "github" {
   # GitHub's OIDC TLS certificate thumbprint.
   # Retrieve latest: openssl s_client -connect token.actions.githubusercontent.com:443 2>/dev/null | openssl x509 -fingerprint -noout
   thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
+    "227203b5317f3818cab5b5ce596132bf36748c0e", # Current active GitHub OIDC TLS thumbprint (retrieved Aug 2026)
     "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
   ]
 
